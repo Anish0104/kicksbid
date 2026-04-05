@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5">
+    <div class="mb-4 fade-in-up">
+        <div class="hero-kicker mb-2">Platform control</div>
+        <h1 class="section-title mb-2">ADMIN DASHBOARD</h1>
+        <p class="text-muted mb-0">Track volume, monitor activity, and manage the rep team.</p>
+    </div>
+
+    <div class="row g-3 mb-4 fade-in-up" style="animation-delay: 0.06s;">
+        <div class="col-md-4 col-xl-3">
+            <div class="card p-4 text-center h-100">
+                <div class="price-tag">{{ total_bids }}</div>
+                <div class="text-muted fw-semibold">Total bids</div>
+            </div>
+        </div>
+        <div class="col-md-4 col-xl-3">
+            <div class="card p-4 text-center h-100">
+                <div class="price-tag price-tag-accent">${{ '%.0f'|format(total_volume) }}</div>
+                <div class="text-muted fw-semibold">Bid volume</div>
+            </div>
+        </div>
+        <div class="col-md-4 col-xl-3">
+            <div class="card p-4 text-center h-100">
+                <div class="price-tag">{{ open_auctions }}</div>
+                <div class="text-muted fw-semibold">Open auctions</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6 fade-in-up" style="animation-delay: 0.1s;">
+            <div class="card p-4 h-100">
+                <h5 class="fw-bold mb-3">Top items by bid</h5>
+                {% if top_items %}
+                    {% for item, top_bid in top_items %}
+                        <div class="d-flex justify-content-between align-items-center py-3 border-bottom">
+                            <div>
+                                <div class="fw-semibold">{{ item.title }}</div>
+                                <div class="text-muted small">{{ item.brand }} | {{ item.condition }}</div>
+                            </div>
+                            <div class="fw-bold text-danger">${{ '%.2f'|format(top_bid) }}</div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">No bidding activity yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-lg-6 fade-in-up" style="animation-delay: 0.14s;">
+            <div class="card p-4 h-100">
+                <h5 class="fw-bold mb-3">Top buyers</h5>
+                {% if top_buyers %}
+                    {% for user, bid_count in top_buyers %}
+                        <div class="d-flex justify-content-between align-items-center py-3 border-bottom">
+                            <div>
+                                <div class="fw-semibold">{{ user.username }}</div>
+                                <div class="text-muted small">{{ user.email }}</div>
+                            </div>
+                            <div class="badge text-bg-light text-dark border badge-pill px-3 py-2">{{ bid_count }} bids</div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">No buyer data yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-lg-6 fade-in-up" style="animation-delay: 0.18s;">
+            <div class="card p-4 h-100">
+                <h5 class="fw-bold mb-3">Customer reps</h5>
+                {% if reps %}
+                    {% for rep in reps %}
+                        <div class="d-flex justify-content-between align-items-center py-3 border-bottom">
+                            <div>
+                                <div class="fw-semibold">{{ rep.username }}</div>
+                                <div class="text-muted small">{{ rep.email }}</div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">No reps created yet.</p>
+                {% endif %}
+
+                <hr class="my-4">
+                <h6 class="fw-bold mb-3">Create new rep</h6>
+                <form method="POST" action="{{ url_for('admin.create_rep') }}">
+                    <div class="mb-2">
+                        <input type="text" name="username" class="form-control" placeholder="Username" required>
+                    </div>
+                    <div class="mb-2">
+                        <input type="email" name="email" class="form-control" placeholder="Email" required>
+                    </div>
+                    <div class="mb-3">
+                        <input type="password" name="password" class="form-control" placeholder="Password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Create rep account</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

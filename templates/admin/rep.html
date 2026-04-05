@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5">
+    <div class="mb-4 fade-in-up">
+        <div class="hero-kicker mb-2">Moderation center</div>
+        <h1 class="section-title mb-2">REP DASHBOARD</h1>
+        <p class="text-muted mb-0">Reply to questions, remove bad bids, and clean up listings.</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8 fade-in-up" style="animation-delay: 0.06s;">
+            <div class="card p-4 mb-4">
+                <h5 class="fw-bold mb-3">User questions</h5>
+                {% if questions %}
+                    {% for q in questions %}
+                        <div class="p-3 rounded-4 mb-3" style="background: #f7f8fb;">
+                            <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                                <div>
+                                    <div class="fw-semibold">{{ q.body }}</div>
+                                    <div class="text-muted small">Asked by {{ q.user.username }} on {{ q.item.title }}</div>
+                                </div>
+                                {% if q.answers %}
+                                    <span class="badge text-bg-success badge-pill">Answered</span>
+                                {% else %}
+                                    <span class="badge text-bg-warning badge-pill">Pending</span>
+                                {% endif %}
+                            </div>
+
+                            {% for a in q.answers %}
+                                <div class="ms-3 mb-1 text-success">Rep: {{ a.body }}</div>
+                            {% endfor %}
+
+                            <form method="POST" action="{{ url_for('admin.answer_question', question_id=q.id) }}" class="mt-3">
+                                <div class="input-group">
+                                    <input type="text" name="body" class="form-control" placeholder="Write a reply..." required>
+                                    <button type="submit" class="btn btn-primary">Reply</button>
+                                </div>
+                            </form>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">No questions yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-lg-4 fade-in-up" style="animation-delay: 0.1s;">
+            <div class="card p-4 mb-4">
+                <h5 class="fw-bold mb-3">Moderation tools</h5>
+                <form method="POST" action="{{ url_for('admin.remove_bid') }}" class="mb-3">
+                    <label class="form-label fw-semibold small text-muted">Remove bid by ID</label>
+                    <div class="input-group">
+                        <input type="number" name="bid_id" class="form-control" placeholder="Bid ID" required>
+                        <button type="submit" class="btn btn-danger">Remove</button>
+                    </div>
+                </form>
+
+                <form method="POST" action="{{ url_for('admin.remove_auction') }}" class="mb-3">
+                    <label class="form-label fw-semibold small text-muted">Remove auction by ID</label>
+                    <div class="input-group">
+                        <input type="number" name="item_id" class="form-control" placeholder="Auction ID" required>
+                        <button type="submit" class="btn btn-danger">Remove</button>
+                    </div>
+                </form>
+
+                <form method="POST" action="{{ url_for('admin.edit_user') }}">
+                    <label class="form-label fw-semibold small text-muted">Edit user</label>
+                    <input type="number" name="user_id" class="form-control mb-2" placeholder="User ID" required>
+                    <input type="text" name="username" class="form-control mb-2" placeholder="New username">
+                    <input type="email" name="email" class="form-control mb-2" placeholder="New email">
+                    <input type="password" name="password" class="form-control mb-3" placeholder="New password">
+                    <button type="submit" class="btn btn-secondary w-100">Update user</button>
+                </form>
+            </div>
+
+            <div class="card p-4">
+                <h5 class="fw-bold mb-3">Recent activity</h5>
+                {% if bids %}
+                    {% for bid in bids %}
+                        <div class="d-flex justify-content-between py-2 border-bottom">
+                            <div>
+                                <div class="fw-semibold small">Bid #{{ bid.id }}</div>
+                                <div class="text-muted small">{{ bid.bidder.username }} on item {{ bid.item_id }}</div>
+                            </div>
+                            <div class="fw-bold text-danger">${{ '%.2f'|format(bid.amount) }}</div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">No bids loaded.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

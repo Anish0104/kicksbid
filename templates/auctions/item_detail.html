@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5">
+    <a href="{{ url_for('search.browse') }}" class="text-decoration-none text-muted fw-semibold d-inline-block mb-4">&larr; Back to auctions</a>
+
+    <div class="row g-4">
+        <div class="col-lg-8 fade-in-up">
+            <div class="sneaker-frame mb-4" style="min-height: 360px;">
+                <div class="sneaker-art">👟</div>
+            </div>
+
+            <div class="card p-4 mb-4">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge text-bg-dark badge-pill">{{ item.condition }}</span>
+                    <span class="badge text-bg-light text-dark border badge-pill">{{ item.brand }}</span>
+                    <span class="badge text-bg-light text-dark border badge-pill">Size {{ item.us_size }}</span>
+                    {% if item.box_included %}
+                        <span class="badge text-bg-success badge-pill">Box included</span>
+                    {% endif %}
+                </div>
+                <h2 class="fw-bold mb-2">{{ item.title }}</h2>
+                <p class="text-muted mb-3">Style code {{ item.style_code }} | {{ item.model_name }} | {{ item.colorway }}</p>
+                <p class="mb-0">{{ item.description }}</p>
+            </div>
+
+            <div class="card p-4 mb-4">
+                <h5 class="fw-bold mb-3">Bid history</h5>
+                {% if not bids %}
+                    <p class="text-muted mb-0">No bids yet. Place the opening move.</p>
+                {% else %}
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Bidder</th>
+                                    <th>Amount</th>
+                                    <th>Time</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for bid in bids %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ bid.bidder.username }}</td>
+                                        <td class="fw-bold text-danger">${{ '%.2f'|format(bid.amount) }}</td>
+                                        <td class="text-muted small">{{ bid.placed_at.strftime('%b %d, %I:%M %p') }}</td>
+                                        <td>{% if bid.is_auto %}<span class="badge text-bg-info text-dark badge-pill">Auto</span>{% endif %}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="card p-4">
+                <h5 class="fw-bold mb-3">Questions & answers</h5>
+                {% if not questions %}
+                    <p class="text-muted mb-3">Ask the seller or a rep for details.</p>
+                {% endif %}
+                {% for q in questions %}
+                    <div class="p-3 rounded-4 mb-3" style="background: #f7f8fb;">
+                        <div class="fw-semibold mb-2">Q: {{ q.body }}</div>
+                        {% for a in q.answers %}
+                            <div class="ms-3 text-success">A: {{ a.body }}</div>
+                        {% else %}
+                            <div class="ms-3 text-muted small">No answer yet</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+
+                {% if current_user.is_authenticated %}
+                    <form method="POST" action="{{ url_for('auctions.post_question', item_id=item.id) }}" class="mt-3">
+                        <div class="input-group">
+                            <input type="text" name="body" class="form-control" placeholder="Ask a question about this pair...">
+                            <button type="submit" class="btn btn-outline-secondary">Ask</button>
+                        </div>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-lg-4 fade-in-up" style="animation-delay: 0.08s;">
+            <div class="card p-4 sticky-top" style="top: 92px;">
+                <div class="hero-kicker mb-2">Current bid</div>
+                <div class="price-tag price-tag-accent mb-2">${{ '%.2f'|format(current_bid) }}</div>
+                <div class="text-muted mb-3 small">Next minimum: <strong>${{ '%.2f'|format(current_bid + item.bid_increment) }}</strong></div>
+                <div class="text-muted mb-4 small">Ends {{ item.close_time.strftime('%b %d, %Y %I:%M %p') }}</div>
+
+                {% if item.status == 'open' and current_user.is_authenticated and current_user.id != item.seller_id %}
+                    <ul class="nav nav-pills nav-fill mb-3" id="bidTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active w-100" data-bs-toggle="pill" data-bs-target="#manual-bid" type="button">Manual</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link w-100" data-bs-toggle="pill" data-bs-target="#auto-bid" type="button">Auto</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="manual-bid">
+                            <form method="POST" action="{{ url_for('auctions.place_bid', item_id=item.id) }}">
+                                <label class="form-label fw-semibold small text-muted">Your bid</label>
+                                <input type="number" step="0.01" min="{{ current_bid + item.bid_increment }}" name="amount" class="form-control mb-3" placeholder="Enter bid amount" required>
+                                <button type="submit" class="btn btn-primary w-100 py-2">Place bid</button>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="auto-bid">
+                            <p class="text-muted small mb-3">Set your max and let KicksBid protect your offer.</p>
+                            <form method="POST" action="{{ url_for('auctions.set_autobid', item_id=item.id) }}">
+                                <label class="form-label fw-semibold small text-muted">Auto-bid ceiling</label>
+                                <input type="number" step="0.01" min="{{ current_bid + item.bid_increment }}" name="upper_limit" class="form-control mb-3" placeholder="Your max limit" required>
+                                <button type="submit" class="btn btn-primary w-100 py-2">Set auto-bid</button>
+                            </form>
+                        </div>
+                    </div>
+                {% elif item.status != 'open' %}
+                    <div class="alert alert-secondary mb-0">This auction has ended.</div>
+                {% elif current_user.is_authenticated and current_user.id == item.seller_id %}
+                    <div class="alert alert-warning mb-0">You are the seller, so bidding is disabled.</div>
+                {% else %}
+                    <div class="alert alert-info mb-0">Sign in to place a bid.</div>
+                {% endif %}
+
+                <hr class="my-4">
+                <div class="d-flex justify-content-between text-muted small mb-2">
+                    <span>Start price</span>
+                    <span>${{ '%.2f'|format(item.start_price) }}</span>
+                </div>
+                <div class="d-flex justify-content-between text-muted small mb-2">
+                    <span>Reserve price</span>
+                    <span>${{ '%.2f'|format(item.reserve_price) }}</span>
+                </div>
+                <div class="d-flex justify-content-between text-muted small mb-2">
+                    <span>Bid increment</span>
+                    <span>${{ '%.2f'|format(item.bid_increment) }}</span>
+                </div>
+                <div class="d-flex justify-content-between text-muted small">
+                    <span>Total bids</span>
+                    <span>{{ bids|length }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

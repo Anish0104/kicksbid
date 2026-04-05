@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5" style="max-width: 860px;">
+    <div class="mb-4 fade-in-up">
+        <div class="hero-kicker mb-2">Sell a pair</div>
+        <h1 class="section-title mb-2">LIST YOUR AUCTION</h1>
+        <p class="text-muted mb-0">Create a clean listing with the details collectors care about most.</p>
+    </div>
+
+    <div class="card p-4 p-md-5 fade-in-up" style="animation-delay: 0.08s;">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Title *</label>
+                    <input type="text" name="title" class="form-control" placeholder="Air Jordan 1 Retro High OG Bred" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Brand</label>
+                    <input type="text" name="brand" class="form-control" placeholder="Nike">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Model name</label>
+                    <input type="text" name="model_name" class="form-control" placeholder="Air Jordan 1">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Colorway</label>
+                    <input type="text" name="colorway" class="form-control" placeholder="Black / Red">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Style code</label>
+                    <input type="text" name="style_code" class="form-control" placeholder="555088-001">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">US size</label>
+                    <input type="number" step="0.5" name="us_size" class="form-control" placeholder="10.5">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Condition</label>
+                    <select name="condition" class="form-select">
+                        <option value="DS">DS (Deadstock)</option>
+                        <option value="VNDS">VNDS</option>
+                        <option value="Used">Used</option>
+                        <option value="Beater">Beater</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Category</label>
+                    <select name="category_id" class="form-select">
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input type="checkbox" name="box_included" class="form-check-input" id="boxCheck" checked>
+                        <label class="form-check-label fw-semibold" for="boxCheck">Box included</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Description</label>
+                    <textarea name="description" class="form-control" rows="4" placeholder="Condition details, flaws, what's included..."></textarea>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Start price *</label>
+                    <input type="number" step="0.01" min="0" name="start_price" class="form-control" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Reserve price</label>
+                    <input type="number" step="0.01" min="0" name="reserve_price" class="form-control" value="0">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Bid increment</label>
+                    <input type="number" step="0.01" min="1" name="bid_increment" class="form-control" value="10">
+                </div>
+                <div class="col-12">
+                    <label class="form-label fw-semibold">Auction end date & time *</label>
+                    <input type="datetime-local" name="close_time" class="form-control" required>
+                </div>
+                <div class="col-12 d-flex flex-wrap gap-2 pt-2">
+                    <button type="submit" class="btn btn-primary px-4">List auction</button>
+                    <a href="{{ url_for('search.browse') }}" class="btn btn-outline-secondary px-4">Cancel</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
