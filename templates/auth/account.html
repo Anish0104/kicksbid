@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5" style="max-width:1000px;">
+    <div class="mb-5 fade-in-up">
+        <div class="hero-kicker mb-2">Account center</div>
+        <h1 class="section-title mb-2">YOUR ACCOUNT</h1>
+        <p class="text-muted mb-0">Review your marketplace activity, jump to saved alerts, and manage your account.</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8 fade-in-up" style="animation-delay:0.05s;">
+            <div class="card p-4 p-md-5 h-100">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+                    <div>
+                        <h4 class="fw-bold mb-1">{{ current_user.username }}</h4>
+                        <p class="text-muted mb-0">{{ current_user.email }}</p>
+                    </div>
+                    <span class="badge text-bg-dark badge-pill px-3 py-2 text-uppercase">{{ current_user.role }}</span>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-6 col-xl-4">
+                        <div class="stat-card h-100">
+                            <div class="hero-kicker mb-2">Open auctions</div>
+                            <div class="stat-number accent">{{ active_auctions_count }}</div>
+                            <div class="text-muted small mt-2">Listings you are still running</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-4">
+                        <div class="stat-card h-100">
+                            <div class="hero-kicker mb-2">Total listings</div>
+                            <div class="stat-number">{{ total_listings_count }}</div>
+                            <div class="text-muted small mt-2">All auctions you have posted</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-4">
+                        <div class="stat-card h-100">
+                            <div class="hero-kicker mb-2">Bids placed</div>
+                            <div class="stat-number">{{ total_bids_count }}</div>
+                            <div class="text-muted small mt-2">Manual and auto bids combined</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-4">
+                        <div class="stat-card h-100">
+                            <div class="hero-kicker mb-2">Auto-bids</div>
+                            <div class="stat-number">{{ autobid_count }}</div>
+                            <div class="text-muted small mt-2">Saved maximum bid rules</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-4">
+                        <div class="stat-card h-100">
+                            <div class="hero-kicker mb-2">Saved alerts</div>
+                            <div class="stat-number">{{ alert_count }}</div>
+                            <div class="text-muted small mt-2">Keyword and category watches</div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-xl-4">
+                        <div class="stat-card h-100">
+                            <div class="hero-kicker mb-2">Unread inbox</div>
+                            <div class="stat-number {% if unread_notifications_count %}accent{% endif %}">{{ unread_notifications_count }}</div>
+                            <div class="text-muted small mt-2">Notifications waiting for you</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{{ url_for('auctions.notifications') }}" class="btn btn-primary px-4">Open inbox</a>
+                    <a href="{{ url_for('search.activity', seller_id=current_user.id, bidder_id=current_user.id) }}" class="btn btn-outline-secondary px-4">View auction history</a>
+                    {% if current_user.role == 'user' %}
+                        <a href="{{ url_for('auctions.alerts') }}" class="btn btn-outline-secondary px-4">Manage alerts</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 fade-in-up" style="animation-delay:0.1s;">
+            <div class="card p-4 mb-4">
+                <h5 class="fw-bold mb-3">Quick links</h5>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('search.questions') }}" class="btn btn-outline-secondary">Browse Q&amp;A</a>
+                    <a href="{{ url_for('search.browse') }}" class="btn btn-outline-secondary">Browse marketplace</a>
+                    {% if current_user.role in ['user', 'admin'] %}
+                        <a href="{{ url_for('auctions.create') }}" class="btn btn-outline-secondary">List a new auction</a>
+                    {% endif %}
+                    {% if current_user.role == 'admin' %}
+                        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">Open admin dashboard</a>
+                    {% elif current_user.role == 'rep' %}
+                        <a href="{{ url_for('admin.rep') }}" class="btn btn-outline-secondary">Open rep dashboard</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if current_user.role == 'user' %}
+                <div class="card p-4">
+                    <h5 class="fw-bold mb-2">Delete account</h5>
+                    <p class="text-muted mb-3">This deactivates your login and removes any live auctions you still have open.</p>
+                    <form method="POST" action="{{ url_for('auth.delete_account') }}">
+                        <button type="submit" class="btn btn-danger w-100" onclick="return confirm('Delete this account and remove active listings?');">
+                            Delete my account
+                        </button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

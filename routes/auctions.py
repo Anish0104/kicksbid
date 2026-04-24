@@ -1,35 +1,214 @@
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
+from urllib.parse import urlparse
+from uuid import uuid4
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import selectinload
+from werkzeug.utils import secure_filename
 
 from extensions import db
-from models import Alert, AutoBid, Bid, Category, Item, Notification, Question
+from image_utils import build_item_cutout, build_processed_item_filename
+from models import Alert, Answer, AutoBid, Bid, Category, Item, Notification, Question, User
 
 auctions_bp = Blueprint("auctions", __name__, url_prefix="/auctions")
+ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
+DISALLOWED_IMAGE_HOSTS = {
+    "google.com",
+    "www.google.com",
+    "bing.com",
+    "www.bing.com",
+    "search.yahoo.com",
+    "yahoo.com",
+    "www.yahoo.com",
+}
+
+
+def ensure_end_user():
+    if current_user.role != "user":
+        flash("Only end-user accounts can use this feature.", "error")
+        return False
+    return True
+
+
+def ensure_listing_seller():
+    if current_user.role not in {"user", "admin"}:
+        flash("Only seller or admin accounts can create auctions.", "error")
+        return False
+    return True
+
+
+def build_listing_form_values(selected_category=None):
+    default_category = str(selected_category) if selected_category else ""
+    return {
+        "title": request.form.get("title", "").strip(),
+        "brand": request.form.get("brand", "").strip(),
+        "model_name": request.form.get("model_name", "").strip(),
+        "colorway": request.form.get("colorway", "").strip(),
+        "style_code": request.form.get("style_code", "").strip(),
+        "us_size": request.form.get("us_size", "").strip(),
+        "condition": request.form.get("condition", "New"),
+        "category_id": request.form.get("category_id", default_category),
+        "box_included": request.form.get("box_included", "on") == "on",
+        "description": request.form.get("description", "").strip(),
+        "start_price": request.form.get("start_price", "").strip(),
+        "reserve_price": request.form.get("reserve_price", "").strip(),
+        "bid_increment": request.form.get("bid_increment", "").strip(),
+        "close_time": request.form.get("close_time", "").strip(),
+        "image_url_override": request.form.get("image_url_override", "").strip(),
+    }
+
+
+def render_create_form(categories, selected_category=None):
+    return render_template(
+        "auctions/create.html",
+        categories=categories,
+        selected_category=selected_category,
+        form_values=build_listing_form_values(selected_category),
+    )
+
+
+def validate_image_url(image_url):
+    if not image_url:
+        return False, "Please provide an image URL."
+
+    if len(image_url) > 500:
+        return False, "Image URL is too long. Please paste a direct image link, not a search results page."
+
+    if image_url.startswith("/static/"):
+        extension = image_url.rsplit(".", 1)[-1].lower() if "." in image_url else ""
+        if extension not in ALLOWED_IMAGE_EXTENSIONS:
+            allowed = ", ".join(sorted(ALLOWED_IMAGE_EXTENSIONS))
+            return False, f"Image must be one of: {allowed}."
+        return True, None
+
+    parsed = urlparse(image_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return False, "Please provide a valid image URL."
+
+    host = parsed.netloc.lower()
+    if host in DISALLOWED_IMAGE_HOSTS or parsed.path.lower().startswith("/search"):
+        return False, "Please paste a direct image link ending in .jpg, .jpeg, .png, .webp, or .gif, not a search page."
+
+    extension = parsed.path.rsplit(".", 1)[-1].lower() if "." in parsed.path else ""
+    if extension not in ALLOWED_IMAGE_EXTENSIONS:
+        allowed = ", ".join(sorted(ALLOWED_IMAGE_EXTENSIONS))
+        return False, f"Please use a direct image URL ending in one of: {allowed}."
+
+    return True, None
+
+
+def save_uploaded_item_image(image_file):
+    filename = secure_filename(image_file.filename or "")
+    if not filename:
+        return None, "Please choose a valid image file."
+
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if extension not in ALLOWED_IMAGE_EXTENSIONS:
+        allowed = ", ".join(sorted(ALLOWED_IMAGE_EXTENSIONS))
+        return None, f"Image must be one of: {allowed}."
+
+    destination = current_app.config["ITEM_UPLOAD_FOLDER"]
+
+    try:
+        image_file.stream.seek(0)
+        processed_image = build_item_cutout(image_file.stream)
+    except Exception:
+        return None, "We could not process that image. Please upload a clear sneaker photo in JPG, PNG, WEBP, or GIF format."
+
+    stored_name = f"{uuid4().hex}-{build_processed_item_filename(filename)}"
+    processed_image.save(os.path.join(destination, stored_name), format="PNG")
+    return f"/static/uploads/items/{stored_name}", None
+
+
+def get_leading_bid(item_id):
+    return (
+        Bid.query.filter_by(item_id=item_id)
+        .order_by(Bid.amount.desc(), Bid.placed_at.asc(), Bid.id.asc())
+        .first()
+    )
 
 
 def get_current_bid(item):
-    bids = Bid.query.filter_by(item_id=item.id).all()
-    return max((bid.amount for bid in bids), default=item.start_price)
+    leading_bid = get_leading_bid(item.id)
+    return leading_bid.amount if leading_bid else item.start_price
 
 
-def close_auction(item):
-    bids = Bid.query.filter_by(item_id=item.id).order_by(Bid.amount.desc(), Bid.placed_at.asc()).all()
-    top_bid = bids[0] if bids else None
+def get_item_participant_ids(item_id):
+    bid_participants = {bidder_id for (bidder_id,) in db.session.query(Bid.bidder_id).filter_by(item_id=item_id).all()}
+    autobid_participants = {
+        bidder_id for (bidder_id,) in db.session.query(AutoBid.bidder_id).filter_by(item_id=item_id).all()
+    }
+    return bid_participants | autobid_participants
 
-    if not top_bid or top_bid.amount < item.reserve_price:
+
+def add_notification(user_id, message):
+    db.session.add(Notification(user_id=user_id, message=message))
+
+
+def item_matches_alert(item, alert):
+    if alert.category_id and alert.category_id != item.category_id:
+        return False
+
+    keywords = (alert.keywords or "").strip().lower()
+    if not keywords:
+        return True
+
+    searchable_text = " ".join(
+        [
+            item.title,
+            item.brand,
+            item.model_name,
+            item.colorway,
+            item.style_code,
+            item.description,
+            f"{item.us_size:g}",
+            f"size {item.us_size:g}",
+        ]
+    ).lower()
+    tokens = [token for token in keywords.split() if token]
+    return all(token in searchable_text for token in tokens)
+
+
+def close_auction(item, commit=True):
+    leading_bid = get_leading_bid(item.id)
+
+    if not leading_bid or leading_bid.amount < item.reserve_price:
         item.status = "no_winner"
+        add_notification(item.seller_id, f"{item.title} ended without meeting the reserve price.")
+        losing_bidder_ids = {bid.bidder_id for bid in item.bids}
+        for bidder_id in losing_bidder_ids:
+            add_notification(bidder_id, f"{item.title} closed without a winner because the reserve was not met.")
     else:
         item.status = "closed"
-        db.session.add(
-            Notification(
-                user_id=top_bid.bidder_id,
-                message=f"Congratulations! You won {item.title} with a bid of ${top_bid.amount:.2f}.",
-            )
+        add_notification(
+            leading_bid.bidder_id,
+            f"Congratulations! You won {item.title} with a bid of ${leading_bid.amount:.2f}.",
         )
+        if item.seller_id != leading_bid.bidder_id:
+            add_notification(
+                item.seller_id,
+                f"Your auction for {item.title} sold for ${leading_bid.amount:.2f}.",
+            )
+
+    AutoBid.query.filter_by(item_id=item.id).delete()
+
+    if commit:
+        db.session.commit()
+
+
+def close_expired_auctions():
+    expired_items = Item.query.filter(Item.status == "open", Item.close_time <= datetime.utcnow()).all()
+    if not expired_items:
+        return 0
+
+    for item in expired_items:
+        close_auction(item, commit=False)
 
     db.session.commit()
+    return len(expired_items)
 
 
 def maybe_close_item(item):
@@ -37,55 +216,175 @@ def maybe_close_item(item):
         close_auction(item)
 
 
-def run_autobid(item_id, new_amount, triggered_by_id):
-    item = db.session.get(Item, item_id)
-    if item is None or item.status != "open":
-        return
+def resolve_autobids(item):
+    placed_auto_bids = []
 
-    autobids = AutoBid.query.filter_by(item_id=item_id).order_by(AutoBid.upper_limit.desc()).all()
-    for autobid in autobids:
-        if autobid.bidder_id == triggered_by_id:
+    while True:
+        leading_bid = get_leading_bid(item.id)
+        if leading_bid is None:
+            break
+
+        minimum_response = leading_bid.amount + item.bid_increment
+        candidate = (
+            AutoBid.query.filter_by(item_id=item.id)
+            .filter(AutoBid.bidder_id != leading_bid.bidder_id, AutoBid.upper_limit >= minimum_response)
+            .order_by(AutoBid.upper_limit.desc(), AutoBid.id.asc())
+            .first()
+        )
+
+        if candidate is None:
+            break
+
+        next_amount = min(minimum_response, candidate.upper_limit)
+        if next_amount <= leading_bid.amount:
+            break
+
+        auto_bid = Bid(
+            item_id=item.id,
+            bidder_id=candidate.bidder_id,
+            amount=next_amount,
+            is_auto=True,
+        )
+        db.session.add(auto_bid)
+        db.session.flush()
+        placed_auto_bids.append(auto_bid)
+
+    return placed_auto_bids
+
+
+def notify_bid_activity(item, previous_leader_id):
+    leading_bid = get_leading_bid(item.id)
+    if leading_bid is None:
+        return leading_bid
+
+    final_amount = leading_bid.amount
+    autobid_limits = {
+        autobid.bidder_id: autobid.upper_limit
+        for autobid in AutoBid.query.filter_by(item_id=item.id).all()
+    }
+
+    for participant_id in sorted(get_item_participant_ids(item.id)):
+        if participant_id in {item.seller_id, leading_bid.bidder_id}:
             continue
-        if autobid.upper_limit > new_amount:
-            next_amount = min(new_amount + item.bid_increment, autobid.upper_limit)
-            db.session.add(
-                Bid(
-                    item_id=item_id,
-                    bidder_id=autobid.bidder_id,
-                    amount=next_amount,
-                    is_auto=True,
-                )
+
+        upper_limit = autobid_limits.get(participant_id)
+        if upper_limit is not None and upper_limit < final_amount:
+            add_notification(
+                participant_id,
+                f"A bid on {item.title} exceeded your auto-bid limit of ${upper_limit:.2f}.",
             )
-            db.session.add(
-                Notification(
-                    user_id=triggered_by_id,
-                    message=f"You have been outbid on {item.title}. New bid: ${next_amount:.2f}.",
-                )
+        elif participant_id == previous_leader_id:
+            add_notification(
+                participant_id,
+                f"You have been outbid on {item.title}. New highest bid: ${final_amount:.2f}.",
             )
-            db.session.commit()
-            run_autobid(item_id, next_amount, autobid.bidder_id)
-            return
+        else:
+            add_notification(
+                participant_id,
+                f"A higher bid was placed on {item.title}. New highest bid: ${final_amount:.2f}.",
+            )
+
+    if item.seller_id != leading_bid.bidder_id:
+        add_notification(item.seller_id, f"New highest bid on {item.title}: ${final_amount:.2f}.")
+
+    return leading_bid
+
+
+def build_similar_items(item, limit=5):
+    now = datetime.utcnow()
+    window_start = now - timedelta(days=30)
+    candidates = (
+        Item.query.options(selectinload(Item.seller), selectinload(Item.category), selectinload(Item.bids))
+        .filter(
+            Item.id != item.id,
+            Item.category_id == item.category_id,
+            Item.close_time >= window_start,
+            Item.close_time <= now,
+            Item.status.in_(["closed", "no_winner"]),
+        )
+        .all()
+    )
+
+    similar_items = []
+    item_color_tokens = {token for token in item.colorway.lower().replace("/", " ").split() if len(token) > 2}
+
+    for candidate in candidates:
+        score = 2
+        if candidate.brand.lower() == item.brand.lower():
+            score += 3
+        if candidate.model_name.lower() == item.model_name.lower():
+            score += 3
+        if candidate.condition == item.condition:
+            score += 1
+        if abs(candidate.us_size - item.us_size) <= 1:
+            score += 1
+
+        candidate_tokens = {
+            token for token in candidate.colorway.lower().replace("/", " ").split() if len(token) > 2
+        }
+        if item_color_tokens & candidate_tokens:
+            score += 1
+
+        similar_items.append(
+            {
+                "item": candidate,
+                "score": score,
+                "final_bid": get_current_bid(candidate),
+            }
+        )
+
+    similar_items.sort(
+        key=lambda row: (
+            -row["score"],
+            -row["item"].close_time.timestamp(),
+            -row["final_bid"],
+        )
+    )
+    return similar_items[:limit]
 
 
 @auctions_bp.route("/<int:item_id>")
 def item_detail(item_id):
     item = db.get_or_404(Item, item_id)
     maybe_close_item(item)
-    bids = Bid.query.filter_by(item_id=item_id).order_by(Bid.amount.desc(), Bid.placed_at.desc()).all()
-    questions = Question.query.filter_by(item_id=item_id).order_by(Question.created_at.desc()).all()
-    current_bid = get_current_bid(item)
+
+    bids = (
+        Bid.query.options(selectinload(Bid.bidder))
+        .filter_by(item_id=item_id)
+        .order_by(Bid.amount.desc(), Bid.placed_at.desc(), Bid.id.desc())
+        .all()
+    )
+    questions = (
+        Question.query.options(
+            selectinload(Question.user),
+            selectinload(Question.answers).selectinload(Answer.rep),
+        )
+        .filter_by(item_id=item_id)
+        .order_by(Question.created_at.desc())
+        .all()
+    )
+
+    can_view_reserve = current_user.is_authenticated and (
+        current_user.id == item.seller_id or current_user.role in {"admin", "rep"}
+    )
+
     return render_template(
         "auctions/item_detail.html",
         item=item,
         bids=bids,
-        current_bid=current_bid,
+        current_bid=get_current_bid(item),
         questions=questions,
+        can_view_reserve=can_view_reserve,
+        similar_items=build_similar_items(item),
     )
 
 
 @auctions_bp.route("/<int:item_id>/bid", methods=["POST"])
 @login_required
 def place_bid(item_id):
+    if not ensure_end_user():
+        return redirect(url_for("auctions.item_detail", item_id=item_id))
+
     item = db.get_or_404(Item, item_id)
     maybe_close_item(item)
 
@@ -99,6 +398,7 @@ def place_bid(item_id):
 
     current_bid = get_current_bid(item)
     min_next = current_bid + item.bid_increment
+    previous_leader = get_leading_bid(item_id)
 
     try:
         amount = float(request.form.get("amount", ""))
@@ -118,15 +418,29 @@ def place_bid(item_id):
             is_auto=False,
         )
     )
+    db.session.flush()
+
+    resolve_autobids(item)
+    leading_bid = notify_bid_activity(item, previous_leader.bidder_id if previous_leader else None)
     db.session.commit()
-    run_autobid(item_id, amount, current_user.id)
-    flash(f"Bid of ${amount:.2f} placed successfully.", "success")
+
+    if leading_bid and leading_bid.bidder_id == current_user.id:
+        flash(f"Bid of ${amount:.2f} placed successfully. You are currently leading.", "success")
+    else:
+        flash(
+            f"Bid of ${amount:.2f} was recorded, but the current highest bid is ${leading_bid.amount:.2f}.",
+            "success",
+        )
+
     return redirect(url_for("auctions.item_detail", item_id=item_id))
 
 
 @auctions_bp.route("/<int:item_id>/autobid", methods=["POST"])
 @login_required
 def set_autobid(item_id):
+    if not ensure_end_user():
+        return redirect(url_for("auctions.item_detail", item_id=item_id))
+
     item = db.get_or_404(Item, item_id)
     maybe_close_item(item)
 
@@ -134,8 +448,13 @@ def set_autobid(item_id):
         flash("This auction is no longer open.", "error")
         return redirect(url_for("auctions.item_detail", item_id=item_id))
 
+    if current_user.id == item.seller_id:
+        flash("You cannot auto-bid on your own auction.", "error")
+        return redirect(url_for("auctions.item_detail", item_id=item_id))
+
     current_bid = get_current_bid(item)
     min_next = current_bid + item.bid_increment
+    previous_leader = get_leading_bid(item_id)
 
     try:
         upper_limit = float(request.form.get("upper_limit", ""))
@@ -148,13 +467,7 @@ def set_autobid(item_id):
         return redirect(url_for("auctions.item_detail", item_id=item_id))
 
     AutoBid.query.filter_by(item_id=item_id, bidder_id=current_user.id).delete()
-    db.session.add(
-        AutoBid(
-            item_id=item_id,
-            bidder_id=current_user.id,
-            upper_limit=upper_limit,
-        )
-    )
+    db.session.add(AutoBid(item_id=item_id, bidder_id=current_user.id, upper_limit=upper_limit))
     db.session.add(
         Bid(
             item_id=item_id,
@@ -163,67 +476,240 @@ def set_autobid(item_id):
             is_auto=True,
         )
     )
+    db.session.flush()
+
+    resolve_autobids(item)
+    leading_bid = notify_bid_activity(item, previous_leader.bidder_id if previous_leader else None)
     db.session.commit()
-    run_autobid(item_id, min_next, current_user.id)
-    flash(f"Auto-bid set up to ${upper_limit:.2f}.", "success")
+
+    if leading_bid and leading_bid.bidder_id == current_user.id:
+        flash(
+            f"Auto-bid saved up to ${upper_limit:.2f}. You are currently leading at ${leading_bid.amount:.2f}.",
+            "success",
+        )
+    else:
+        flash(
+            (
+                f"Auto-bid saved up to ${upper_limit:.2f}. "
+                f"The current highest bid is ${leading_bid.amount:.2f}, and the system will keep bidding for you "
+                "until your limit is reached."
+            ),
+            "success",
+        )
+
     return redirect(url_for("auctions.item_detail", item_id=item_id))
 
 
 @auctions_bp.route("/create", methods=["GET", "POST"])
 @login_required
 def create():
+    if not ensure_listing_seller():
+        return redirect(url_for("search.browse"))
+
     categories = Category.query.filter(Category.parent_id.isnot(None)).order_by(Category.name.asc()).all()
+    selected_category = request.args.get("category_id", type=int)
 
     if request.method == "POST":
         close_time_raw = request.form.get("close_time", "")
-        close_time = datetime.strptime(close_time_raw, "%Y-%m-%dT%H:%M")
+        image_file = request.files.get("image_file")
+        image_url_override = request.form.get("image_url_override", "").strip()
+
+        try:
+            close_time = datetime.strptime(close_time_raw, "%Y-%m-%dT%H:%M")
+            us_size = float(request.form.get("us_size", 0))
+            category_id = int(request.form.get("category_id", 0))
+            start_price = float(request.form.get("start_price", 0))
+            reserve_price = float(request.form.get("reserve_price", 0) or 0)
+            bid_increment = float(request.form.get("bid_increment", 1) or 1)
+        except ValueError:
+            flash("Please provide valid auction details.", "error")
+            return render_create_form(categories, selected_category)
+
+        title = request.form.get("title", "").strip()
+        brand = request.form.get("brand", "").strip()
+        model_name = request.form.get("model_name", "").strip()
+        colorway = request.form.get("colorway", "").strip()
+        style_code = request.form.get("style_code", "").strip()
+        description = request.form.get("description", "").strip()
+
+        if not all([title, brand, model_name, colorway, style_code, description]):
+            flash("All listing fields are required.", "error")
+            return render_create_form(categories, selected_category)
+
+        if close_time <= datetime.utcnow():
+            flash("Closing time must be in the future.", "error")
+            return render_create_form(categories, selected_category)
+
+        if start_price <= 0 or reserve_price < 0 or bid_increment <= 0 or us_size <= 0:
+            flash("Prices, bid increment, and size must be positive values.", "error")
+            return render_create_form(categories, selected_category)
+
+        if not db.session.get(Category, category_id):
+            flash("Please choose a valid category.", "error")
+            return render_create_form(categories, selected_category)
+
+        stored_image_url = None
+        if image_file and image_file.filename:
+            stored_image_url, image_error = save_uploaded_item_image(image_file)
+            if image_error:
+                flash(image_error, "error")
+                return render_create_form(categories, selected_category)
+        elif image_url_override:
+            valid_image_url, image_error = validate_image_url(image_url_override)
+            if not valid_image_url:
+                flash(image_error, "error")
+                return render_create_form(categories, selected_category)
+            stored_image_url = image_url_override
 
         item = Item(
-            title=request.form.get("title", "").strip(),
-            brand=request.form.get("brand", "").strip(),
-            model_name=request.form.get("model_name", "").strip(),
-            colorway=request.form.get("colorway", "").strip(),
-            style_code=request.form.get("style_code", "").strip(),
-            us_size=float(request.form.get("us_size", 0)),
-            condition=request.form.get("condition", "DS"),
+            title=title,
+            brand=brand,
+            model_name=model_name,
+            colorway=colorway,
+            style_code=style_code,
+            us_size=us_size,
+            condition=request.form.get("condition", "New"),
             box_included="box_included" in request.form,
-            description=request.form.get("description", "").strip(),
+            description=description,
             seller_id=current_user.id,
-            category_id=int(request.form.get("category_id", 0)),
-            start_price=float(request.form.get("start_price", 0)),
-            reserve_price=float(request.form.get("reserve_price", 0) or 0),
-            bid_increment=float(request.form.get("bid_increment", 1) or 1),
+            category_id=category_id,
+            start_price=start_price,
+            reserve_price=reserve_price,
+            bid_increment=bid_increment,
+            image_url_override=stored_image_url,
             close_time=close_time,
         )
         db.session.add(item)
-        db.session.commit()
+        db.session.flush()
 
-        alerts = Alert.query.filter_by(category_id=item.category_id).all()
-        for alert in alerts:
+        for alert in Alert.query.options(selectinload(Alert.user)).filter_by(category_id=item.category_id).all():
             if alert.user_id == current_user.id:
                 continue
-            keywords = (alert.keywords or "").strip().lower()
-            if not keywords or keywords in item.title.lower() or keywords in item.brand.lower():
-                db.session.add(
-                    Notification(
-                        user_id=alert.user_id,
-                        message=f"New item matching your alert: {item.title}",
-                    )
+            if item_matches_alert(item, alert):
+                add_notification(
+                    alert.user_id,
+                    f"New item matching your alert: {item.title} in {item.category.name}.",
                 )
-        db.session.commit()
+
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            flash(
+                "We could not save this auction. If you added an image URL, please use a direct image link instead of a search page.",
+                "error",
+            )
+            return render_create_form(categories, selected_category)
 
         flash("Auction listed successfully.", "success")
         return redirect(url_for("search.browse"))
 
-    return render_template("auctions/create.html", categories=categories)
+    return render_create_form(categories, selected_category)
 
 
 @auctions_bp.route("/<int:item_id>/question", methods=["POST"])
 @login_required
 def post_question(item_id):
+    if not ensure_end_user():
+        return redirect(url_for("auctions.item_detail", item_id=item_id))
+
+    item = db.get_or_404(Item, item_id)
     body = request.form.get("body", "").strip()
+
     if body:
         db.session.add(Question(user_id=current_user.id, item_id=item_id, body=body))
+        for staff_user in User.query.filter(User.role.in_(["rep", "admin"])).all():
+            add_notification(staff_user.id, f"New question posted on {item.title}.")
+        if item.seller_id != current_user.id:
+            add_notification(item.seller_id, f"A buyer asked a new question on {item.title}.")
         db.session.commit()
         flash("Question posted.", "success")
+
     return redirect(url_for("auctions.item_detail", item_id=item_id))
+
+
+@auctions_bp.route("/alerts", methods=["GET", "POST"])
+@login_required
+def alerts():
+    if not ensure_end_user():
+        return redirect(url_for("search.browse"))
+
+    categories = Category.query.filter(Category.parent_id.isnot(None)).order_by(Category.name.asc()).all()
+
+    if request.method == "POST":
+        category_id = request.form.get("category_id", type=int)
+        keywords = request.form.get("keywords", "").strip()
+
+        if not category_id:
+            flash("Choose a category for your alert.", "error")
+            return redirect(url_for("auctions.alerts"))
+
+        duplicate_alert = Alert.query.filter_by(
+            user_id=current_user.id,
+            category_id=category_id,
+            keywords=keywords or None,
+        ).first()
+        if duplicate_alert:
+            flash("That alert already exists.", "error")
+            return redirect(url_for("auctions.alerts"))
+
+        db.session.add(Alert(user_id=current_user.id, category_id=category_id, keywords=keywords or None))
+        db.session.commit()
+        flash("Alert saved. You will be notified when a matching pair is listed.", "success")
+        return redirect(url_for("auctions.alerts"))
+
+    saved_alerts = (
+        Alert.query.options(selectinload(Alert.category))
+        .filter_by(user_id=current_user.id)
+        .order_by(Alert.id.desc())
+        .all()
+    )
+    return render_template("auctions/alerts.html", categories=categories, saved_alerts=saved_alerts)
+
+
+@auctions_bp.route("/alerts/<int:alert_id>/delete", methods=["POST"])
+@login_required
+def delete_alert(alert_id):
+    alert = db.get_or_404(Alert, alert_id)
+    if alert.user_id != current_user.id:
+        flash("You can only remove your own alerts.", "error")
+        return redirect(url_for("auctions.alerts"))
+
+    db.session.delete(alert)
+    db.session.commit()
+    flash("Alert removed.", "success")
+    return redirect(url_for("auctions.alerts"))
+
+
+@auctions_bp.route("/notifications")
+@login_required
+def notifications():
+    notifications_list = (
+        Notification.query.filter_by(user_id=current_user.id)
+        .order_by(Notification.is_read.asc(), Notification.created_at.desc(), Notification.id.desc())
+        .all()
+    )
+    return render_template("auctions/notifications.html", notifications=notifications_list)
+
+
+@auctions_bp.route("/notifications/mark-all-read", methods=["POST"])
+@login_required
+def mark_all_notifications_read():
+    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({"is_read": True})
+    db.session.commit()
+    flash("All notifications marked as read.", "success")
+    return redirect(url_for("auctions.notifications"))
+
+
+@auctions_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])
+@login_required
+def mark_notification_read(notification_id):
+    notification = db.get_or_404(Notification, notification_id)
+    if notification.user_id != current_user.id:
+        flash("You can only update your own notifications.", "error")
+        return redirect(url_for("auctions.notifications"))
+
+    notification.is_read = True
+    db.session.commit()
+    flash("Notification marked as read.", "success")
+    return redirect(url_for("auctions.notifications"))

@@ -1,0 +1,99 @@
+erDiagram
+    USERS {
+        int id PK
+        varchar username "UNIQUE"
+        varchar email "UNIQUE"
+        varchar password_hash
+        varchar role
+        boolean is_active
+        datetime created_at
+    }
+
+    CATEGORIES {
+        int id PK
+        varchar name
+        int parent_id FK "nullable"
+    }
+
+    ITEMS {
+        int id PK
+        varchar title
+        varchar brand
+        varchar model_name
+        varchar colorway
+        varchar style_code
+        float us_size
+        varchar condition
+        boolean box_included
+        text description
+        int seller_id FK
+        int category_id FK
+        float start_price
+        float reserve_price
+        float bid_increment
+        datetime close_time
+        varchar status
+        datetime created_at
+    }
+
+    BIDS {
+        int id PK
+        int item_id FK
+        int bidder_id FK
+        float amount
+        datetime placed_at
+        boolean is_auto
+    }
+
+    AUTOBIDS {
+        int id PK
+        int item_id FK
+        int bidder_id FK
+        float upper_limit
+    }
+
+    ALERTS {
+        int id PK
+        int user_id FK
+        int category_id FK
+        varchar keywords "nullable"
+    }
+
+    QUESTIONS {
+        int id PK
+        int user_id FK
+        int item_id FK
+        text body
+        datetime created_at
+    }
+
+    ANSWERS {
+        int id PK
+        int question_id FK
+        int rep_id FK
+        text body
+        datetime created_at
+    }
+
+    NOTIFICATIONS {
+        int id PK
+        int user_id FK
+        varchar message
+        boolean is_read
+        datetime created_at
+    }
+
+    USERS ||--o{ ITEMS : lists
+    CATEGORIES ||--o{ ITEMS : contains
+    USERS ||--o{ BIDS : places
+    ITEMS ||--o{ BIDS : receives
+    USERS ||--o{ AUTOBIDS : sets
+    ITEMS ||--o{ AUTOBIDS : accepts
+    USERS ||--o{ ALERTS : creates
+    CATEGORIES ||--o{ ALERTS : monitors
+    USERS ||--o{ QUESTIONS : asks
+    ITEMS ||--o{ QUESTIONS : receives
+    QUESTIONS ||--o{ ANSWERS : has
+    USERS ||--o{ ANSWERS : responds
+    USERS ||--o{ NOTIFICATIONS : receives
+    CATEGORIES o|--o{ CATEGORIES : parent_of

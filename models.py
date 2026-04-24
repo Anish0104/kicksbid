@@ -8,6 +8,64 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from extensions import db
 
 
+LOCAL_CUTOUT_IMAGE_BY_STYLE_CODE = {
+    "FN7649-110": "/static/images/cutouts/FN7649-110.png",
+    "FV2345-100": "/static/images/cutouts/FV2345-100.png",
+    "CP9654": "/static/images/cutouts/CP9654.png",
+}
+
+
+IMAGE_URL_BY_STYLE_CODE = {
+    "555088-023": "https://images.stockx.com/images/Air-Jordan-1-Retro-High-OG-Bred-Patent-Product.jpg",
+    "CP9654": "https://images.stockx.com/images/adidas-Yeezy-Boost-350-V2-Zebra-Product.jpg",
+    "CW2288-111": "https://images.stockx.com/images/Nike-Air-Force-1-07-White-Product.jpg",
+    "U990TC6": "https://images.stockx.com/images/New-Balance-990v6-Grey-Product.jpg",
+    "FV2345-100": "https://images.stockx.com/images/Nike-LeBron-21-Akoya-Product.jpg",
+    "DZ4137-106": "https://images.stockx.com/images/Air-Jordan-1-Retro-High-OG-Bred-Patent-Product.jpg",
+    "1201A019-108": "https://images.stockx.com/images/ASICS-Gel-Kayano-14-Cream-Black-Metallic-Plum-Product.jpg",
+    "FN7649-110": "https://images.stockx.com/images/Nike-Air-Force-1-Low-Stussy-Black-Product.jpg",
+    "U9060HSC": "https://images.stockx.com/images/New-Balance-990v6-Grey-Product.jpg",
+    "IF1864": "https://images.stockx.com/images/adidas-AE-1-New-Wave-Product.jpg",
+    "FV4921-600": "https://images.stockx.com/images/Nike-Kobe-6-Protro-Reverse-Grinch-Product.jpg",
+    "FV5029-141": "https://images.stockx.com/images/Air-Jordan-4-Retro-Military-Blue-2024-Product.jpg",
+    "DN3707-100": "https://images.stockx.com/images/Air-Jordan-3-Retro-White-Cement-Reimagined-Product.jpg",
+    "DR5415-103": "https://images.stockx.com/images/Air-Jordan-4-Retro-SB-Pine-Green-Product.jpg",
+    "M990SB2": "https://images.stockx.com/images/New-Balance-990v2-Salehe-Bembury-Sand-Be-The-Time-Product.jpg",
+    "ML2002RJ": "https://images.stockx.com/images/New-Balance-990v6-Grey-Product.jpg",
+}
+
+
+FALLBACK_IMAGE_BY_BRAND = {
+    "jordan": "https://images.stockx.com/images/Air-Jordan-4-Retro-Military-Blue-2024-Product.jpg",
+    "nike": "https://images.stockx.com/images/Nike-Air-Force-1-07-White-Product.jpg",
+    "adidas": "https://images.stockx.com/images/adidas-Yeezy-Boost-350-V2-Zebra-Product.jpg",
+    "new balance": "https://images.stockx.com/images/New-Balance-990v6-Grey-Product.jpg",
+    "asics": "https://images.stockx.com/images/ASICS-Gel-Kayano-14-Cream-Black-Metallic-Plum-Product.jpg",
+}
+
+
+def build_item_image_url(
+    style_code: str,
+    brand: str,
+    model_name: str,
+    image_url_override: Optional[str] = None,
+) -> str:
+    if image_url_override:
+        return image_url_override
+
+    if style_code in LOCAL_CUTOUT_IMAGE_BY_STYLE_CODE:
+        return LOCAL_CUTOUT_IMAGE_BY_STYLE_CODE[style_code]
+
+    if style_code in IMAGE_URL_BY_STYLE_CODE:
+        return IMAGE_URL_BY_STYLE_CODE[style_code]
+
+    brand_key = (brand or "").strip().lower()
+    if brand_key in FALLBACK_IMAGE_BY_BRAND:
+        return FALLBACK_IMAGE_BY_BRAND[brand_key]
+
+    return "https://images.stockx.com/images/Nike-Air-Force-1-07-White-Product.jpg"
+
+
 class User(UserMixin, db.Model):
     __tablename__ = "users"
 
@@ -21,6 +79,7 @@ class User(UserMixin, db.Model):
 
     items: Mapped[list["Item"]] = relationship("Item", back_populates="seller")
     bids: Mapped[list["Bid"]] = relationship("Bid", back_populates="bidder")
+    autobids: Mapped[list["AutoBid"]] = relationship("AutoBid", back_populates="bidder")
     notifications: Mapped[list["Notification"]] = relationship("Notification", back_populates="user")
     alerts: Mapped[list["Alert"]] = relationship("Alert", back_populates="user")
     questions: Mapped[list["Question"]] = relationship("Question", back_populates="user")
@@ -67,6 +126,7 @@ class Item(db.Model):
     start_price: Mapped[float] = mapped_column(Float, nullable=False)
     reserve_price: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     bid_increment: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    image_url_override: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     close_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
@@ -76,6 +136,15 @@ class Item(db.Model):
     bids: Mapped[list["Bid"]] = relationship("Bid", back_populates="item", cascade="all, delete-orphan")
     autobids: Mapped[list["AutoBid"]] = relationship("AutoBid", back_populates="item", cascade="all, delete-orphan")
     questions: Mapped[list["Question"]] = relationship("Question", back_populates="item", cascade="all, delete-orphan")
+
+    @property
+    def image_url(self) -> str:
+        return build_item_image_url(
+            self.style_code,
+            self.brand,
+            self.model_name,
+            self.image_url_override,
+        )
 
 
 class Bid(db.Model):
@@ -101,6 +170,7 @@ class AutoBid(db.Model):
     upper_limit: Mapped[float] = mapped_column(Float, nullable=False)
 
     item: Mapped["Item"] = relationship("Item", back_populates="autobids")
+    bidder: Mapped["User"] = relationship("User", back_populates="autobids")
 
 
 class Alert(db.Model):

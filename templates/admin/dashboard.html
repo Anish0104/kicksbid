@@ -1,104 +1,385 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="container py-5">
-    <div class="mb-4 fade-in-up">
+    <div class="mb-5 fade-in-up">
         <div class="hero-kicker mb-2">Platform control</div>
         <h1 class="section-title mb-2">ADMIN DASHBOARD</h1>
-        <p class="text-muted mb-0">Track volume, monitor activity, and manage the rep team.</p>
+        <p class="text-muted mb-0">Track marketplace health, manage staff access, and review sales performance.</p>
     </div>
 
-    <div class="row g-3 mb-4 fade-in-up" style="animation-delay: 0.06s;">
-        <div class="col-md-4 col-xl-3">
-            <div class="card p-4 text-center h-100">
-                <div class="price-tag">{{ total_bids }}</div>
-                <div class="text-muted fw-semibold">Total bids</div>
+    <div class="row g-3 mb-5 fade-in-up" style="animation-delay:0.05s;">
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-card h-100">
+                <div class="hero-kicker mb-2">Total users</div>
+                <div class="stat-number">{{ total_users }}</div>
+                <div class="text-muted small mt-2">Registered accounts</div>
             </div>
         </div>
-        <div class="col-md-4 col-xl-3">
-            <div class="card p-4 text-center h-100">
-                <div class="price-tag price-tag-accent">${{ '%.0f'|format(total_volume) }}</div>
-                <div class="text-muted fw-semibold">Bid volume</div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-card h-100">
+                <div class="hero-kicker mb-2">Active auctions</div>
+                <div class="stat-number accent">{{ active_auctions }}</div>
+                <div class="text-muted small mt-2">Live listings with time left</div>
             </div>
         </div>
-        <div class="col-md-4 col-xl-3">
-            <div class="card p-4 text-center h-100">
-                <div class="price-tag">{{ open_auctions }}</div>
-                <div class="text-muted fw-semibold">Open auctions</div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-card h-100">
+                <div class="hero-kicker mb-2">Total bids</div>
+                <div class="stat-number">{{ total_bids }}</div>
+                <div class="text-muted small mt-2">Bids placed sitewide</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-card h-100">
+                <div class="hero-kicker mb-2">Open questions</div>
+                <div class="stat-number {% if unanswered_questions_count > 0 %}accent{% endif %}">{{ unanswered_questions_count }}</div>
+                <div class="text-muted small mt-2">Waiting on a response</div>
             </div>
         </div>
     </div>
 
-    <div class="row g-4">
-        <div class="col-lg-6 fade-in-up" style="animation-delay: 0.1s;">
+    <div class="row g-4 mb-4">
+        <div class="col-xl-8 fade-in-up" style="animation-delay:0.1s;">
             <div class="card p-4 h-100">
-                <h5 class="fw-bold mb-3">Top items by bid</h5>
-                {% if top_items %}
-                    {% for item, top_bid in top_items %}
-                        <div class="d-flex justify-content-between align-items-center py-3 border-bottom">
-                            <div>
-                                <div class="fw-semibold">{{ item.title }}</div>
-                                <div class="text-muted small">{{ item.brand }} | {{ item.condition }}</div>
-                            </div>
-                            <div class="fw-bold text-danger">${{ '%.2f'|format(top_bid) }}</div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted mb-0">No bidding activity yet.</p>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="col-lg-6 fade-in-up" style="animation-delay: 0.14s;">
-            <div class="card p-4 h-100">
-                <h5 class="fw-bold mb-3">Top buyers</h5>
-                {% if top_buyers %}
-                    {% for user, bid_count in top_buyers %}
-                        <div class="d-flex justify-content-between align-items-center py-3 border-bottom">
-                            <div>
-                                <div class="fw-semibold">{{ user.username }}</div>
-                                <div class="text-muted small">{{ user.email }}</div>
-                            </div>
-                            <div class="badge text-bg-light text-dark border badge-pill px-3 py-2">{{ bid_count }} bids</div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted mb-0">No buyer data yet.</p>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="col-lg-6 fade-in-up" style="animation-delay: 0.18s;">
-            <div class="card p-4 h-100">
-                <h5 class="fw-bold mb-3">Customer reps</h5>
-                {% if reps %}
-                    {% for rep in reps %}
-                        <div class="d-flex justify-content-between align-items-center py-3 border-bottom">
-                            <div>
-                                <div class="fw-semibold">{{ rep.username }}</div>
-                                <div class="text-muted small">{{ rep.email }}</div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted mb-0">No reps created yet.</p>
-                {% endif %}
-
-                <hr class="my-4">
-                <h6 class="fw-bold mb-3">Create new rep</h6>
-                <form method="POST" action="{{ url_for('admin.create_rep') }}">
-                    <div class="mb-2">
-                        <input type="text" name="username" class="form-control" placeholder="Username" required>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">Recent bids</h5>
+                    <span class="badge text-bg-light text-dark border badge-pill px-3 py-2">Last 20</span>
+                </div>
+                {% if recent_bids %}
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Item</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Bidder</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Amount</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for bid in recent_bids %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ bid.item.title }}</td>
+                                        <td class="text-muted">{{ bid.bidder.username }}</td>
+                                        <td class="fw-bold" style="color:var(--kb-accent);">${{ '%.2f'|format(bid.amount) }}</td>
+                                        <td class="text-muted small">{{ bid.placed_at.strftime('%b %d, %Y %I:%M %p') }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="mb-2">
-                        <input type="email" name="email" class="form-control" placeholder="Email" required>
+                {% else %}
+                    <p class="text-muted mb-0">No bids have been placed yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-xl-4 fade-in-up" style="animation-delay:0.14s;">
+            <div class="card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">Unanswered questions</h5>
+                    {% if unanswered_questions_count > 0 %}
+                        <span class="badge badge-pill px-3 py-2" style="background:rgba(255,77,26,0.12);color:var(--kb-accent);border:1px solid rgba(255,77,26,0.2);">{{ unanswered_questions_count }}</span>
+                    {% else %}
+                        <span class="badge text-bg-success badge-pill px-3 py-2">All clear</span>
+                    {% endif %}
+                </div>
+                {% if unanswered_questions %}
+                    {% for question in unanswered_questions %}
+                        <div class="question-item">
+                            <div class="fw-semibold mb-1" style="font-size:0.9rem;">{{ question.body }}</div>
+                            <a href="{{ url_for('auctions.item_detail', item_id=question.item.id) }}" class="text-decoration-none fw-semibold" style="font-size:0.84rem;color:var(--kb-accent);">
+                                {{ question.item.title }} →
+                            </a>
+                            <div class="text-muted mt-1" style="font-size:0.76rem;">{{ question.created_at.strftime('%b %d, %I:%M %p') }}</div>
+                            <form method="POST" action="{{ url_for('admin.answer_question', question_id=question.id, next='dashboard') }}" class="mt-3">
+                                <div class="input-group">
+                                    <input type="text" name="body" class="form-control" placeholder="Reply as admin..." required>
+                                    <button type="submit" class="btn btn-primary">Answer</button>
+                                </div>
+                            </form>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">Every question currently has an answer.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-4 fade-in-up" style="animation-delay:0.18s;">
+            <div class="card p-4 h-100">
+                <h5 class="fw-bold mb-4">Create customer rep</h5>
+                <form method="POST" action="{{ url_for('admin.create_rep') }}">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Username</label>
+                        <input type="text" name="username" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <input type="password" name="password" class="form-control" placeholder="Password" required>
+                        <label class="form-label fw-semibold">Email</label>
+                        <input type="email" name="email" class="form-control" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Temporary password</label>
+                        <input type="password" name="password" class="form-control" required>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Create rep account</button>
                 </form>
             </div>
         </div>
+
+        <div class="col-lg-8 fade-in-up" style="animation-delay:0.22s;">
+            <div class="card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">Sales summary</h5>
+                    <span class="badge text-bg-dark badge-pill px-3 py-2">{{ report.total_sales_count }} completed sales</span>
+                </div>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="stat-card h-100">
+                            <div class="hero-kicker mb-2">Total earnings</div>
+                            <div class="stat-number accent">${{ '%.2f'|format(report.total_earnings) }}</div>
+                            <div class="text-muted small mt-2">Closed auctions with a winner</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card h-100">
+                            <div class="hero-kicker mb-2">Average sale</div>
+                            <div class="stat-number">${{ '%.2f'|format(report.average_sale_price) }}</div>
+                            <div class="text-muted small mt-2">Mean winning bid</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card h-100">
+                            <div class="hero-kicker mb-2">Top buyer</div>
+                            <div class="stat-number" style="font-size:1.6rem;">
+                                {% if report.best_buyers %}
+                                    {{ report.best_buyers[0].user.username }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </div>
+                            <div class="text-muted small mt-2">
+                                {% if report.best_buyers %}
+                                    ${{ '%.2f'|format(report.best_buyers[0].total) }} won
+                                {% else %}
+                                    No completed sales yet
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if report.earnings_by_category %}
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Item type</th>
+                                    <th class="text-muted text-end" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Earnings</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in report.earnings_by_category %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ row.name }}</td>
+                                        <td class="text-end fw-bold" style="color:var(--kb-accent);">${{ '%.2f'|format(row.total) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">Sales totals will appear here after completed auctions exist.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-6 fade-in-up" style="animation-delay:0.26s;">
+            <div class="card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">Earnings per item</h5>
+                    <span class="badge text-bg-light text-dark border badge-pill px-3 py-2">{{ report.earnings_per_item|length }} rows</span>
+                </div>
+                {% if report.earnings_per_item %}
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Item</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Type</th>
+                                    <th class="text-muted text-end" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Final price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in report.earnings_per_item %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ row.item.title }}</td>
+                                        <td class="text-muted">{{ row.category_name }}</td>
+                                        <td class="text-end fw-bold" style="color:var(--kb-accent);">${{ '%.2f'|format(row.final_price) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">No completed item sales yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-xl-6 fade-in-up" style="animation-delay:0.3s;">
+            <div class="card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">Earnings per end-user</h5>
+                    <span class="badge text-bg-light text-dark border badge-pill px-3 py-2">Seller totals</span>
+                </div>
+                {% if report.earnings_by_seller %}
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Seller</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Sales</th>
+                                    <th class="text-muted text-end" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in report.earnings_by_seller %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ row.user.username }}</td>
+                                        <td class="text-muted">{{ row.sales_count }}</td>
+                                        <td class="text-end fw-bold" style="color:var(--kb-accent);">${{ '%.2f'|format(row.total) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">No seller revenue recorded yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-6 fade-in-up" style="animation-delay:0.34s;">
+            <div class="card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">Best-selling items</h5>
+                    <span class="badge text-bg-light text-dark border badge-pill px-3 py-2">Top 5</span>
+                </div>
+                {% if report.best_selling_items %}
+                    <div class="d-grid gap-3">
+                        {% for row in report.best_selling_items %}
+                            <div class="question-item mb-0">
+                                <div class="d-flex justify-content-between align-items-start gap-3">
+                                    <div>
+                                        <div class="fw-semibold">{{ row.item.title }}</div>
+                                        <div class="text-muted small mt-1">{{ row.seller.username }} → {{ row.buyer.username }}</div>
+                                    </div>
+                                    <div class="fw-bold" style="color:var(--kb-accent);white-space:nowrap;">${{ '%.2f'|format(row.final_price) }}</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">No sold items yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-xl-6 fade-in-up" style="animation-delay:0.38s;">
+            <div class="card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="fw-bold mb-0">Best buyers</h5>
+                    <span class="badge text-bg-light text-dark border badge-pill px-3 py-2">Top 5</span>
+                </div>
+                {% if report.best_buyers %}
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Buyer</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Wins</th>
+                                    <th class="text-muted text-end" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Spend</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in report.best_buyers %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ row.user.username }}</td>
+                                        <td class="text-muted">{{ row.wins }}</td>
+                                        <td class="text-end fw-bold" style="color:var(--kb-accent);">${{ '%.2f'|format(row.total) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">No buyer rankings yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card p-4 fade-in-up" style="animation-delay:0.42s;">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+            <div>
+                <h5 class="fw-bold mb-1">Users</h5>
+                <p class="text-muted mb-0 small">Promote marketplace users to reps directly from this table.</p>
+            </div>
+            <span class="badge text-bg-dark badge-pill px-3 py-2">{{ users|length }} accounts</span>
+        </div>
+        {% if users %}
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Username</th>
+                            <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Email</th>
+                            <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Role</th>
+                            <th class="text-end text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                            <tr>
+                                <td class="fw-semibold">{{ user.username }}</td>
+                                <td class="text-muted">{{ user.email }}</td>
+                                <td>
+                                    {% if user.role == 'admin' %}
+                                        <span class="badge badge-pill" style="background:rgba(255,77,26,0.11);color:var(--kb-accent);border:1px solid rgba(255,77,26,0.2);">admin</span>
+                                    {% elif user.role == 'rep' %}
+                                        <span class="badge badge-pill" style="background:rgba(59,130,246,0.11);color:#1d4ed8;border:1px solid rgba(59,130,246,0.2);">rep</span>
+                                    {% elif user.role == 'deleted' %}
+                                        <span class="badge text-bg-light text-dark border badge-pill">deleted</span>
+                                    {% else %}
+                                        <span class="badge text-bg-light text-dark border badge-pill">user</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if user.role == 'user' %}
+                                        <form method="POST" action="{{ url_for('admin.promote_user', user_id=user.id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-primary">Promote to Rep</button>
+                                        </form>
+                                    {% elif user.role == 'rep' %}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled>Already Rep</button>
+                                    {% else %}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled>No action</button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted mb-0">No users found.</p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

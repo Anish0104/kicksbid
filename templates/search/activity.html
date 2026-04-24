@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5" style="max-width:1120px;">
+    <div class="mb-5 fade-in-up">
+        <div class="hero-kicker mb-2">Auction history</div>
+        <h1 class="section-title mb-2">BUYER &amp; SELLER ACTIVITY</h1>
+        <p class="text-muted mb-0">View the auctions a specific seller listed or a specific buyer participated in.</p>
+    </div>
+
+    <div class="card p-4 mb-4 fade-in-up" style="animation-delay:0.06s;">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Seller</label>
+                <select name="seller_id" class="form-select">
+                    <option value="">Choose a seller</option>
+                    {% for user in users %}
+                        <option value="{{ user.id }}" {% if selected_seller and selected_seller.id == user.id %}selected{% endif %}>{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Buyer / bidder</label>
+                <select name="bidder_id" class="form-select">
+                    <option value="">Choose a buyer</option>
+                    {% for user in users %}
+                        <option value="{{ user.id }}" {% if selected_bidder and selected_bidder.id == user.id %}selected{% endif %}>{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 d-flex gap-2 flex-wrap">
+                <button type="submit" class="btn btn-primary px-4">Load history</button>
+                <a href="{{ url_for('search.activity') }}" class="btn btn-outline-secondary px-4">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6 fade-in-up" style="animation-delay:0.1s;">
+            <div class="card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h5 class="fw-bold mb-1">Seller history</h5>
+                        <p class="text-muted small mb-0">
+                            {% if selected_seller %}
+                                Auctions listed by {{ selected_seller.username }}
+                            {% else %}
+                                Select a seller to load their auctions
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if seller_auctions %}
+                        <span class="badge text-bg-dark badge-pill px-3 py-2">{{ seller_auctions|length }}</span>
+                    {% endif %}
+                </div>
+
+                {% if seller_auctions %}
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Item</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Status</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Current / final</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in seller_auctions %}
+                                    <tr>
+                                        <td class="fw-semibold">
+                                            <a href="{{ url_for('auctions.item_detail', item_id=item.id) }}" class="text-decoration-none" style="color:inherit;">
+                                                {{ item.title }}
+                                            </a>
+                                            <div class="text-muted small mt-1">{{ item.close_time.strftime('%b %d, %Y') }}</div>
+                                        </td>
+                                        <td><span class="badge text-bg-light text-dark border badge-pill">{{ item.status.replace('_', ' ') }}</span></td>
+                                        <td class="fw-bold" style="color:var(--kb-accent);">${{ '%.2f'|format(current_bids[item.id]) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">No seller activity loaded.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-lg-6 fade-in-up" style="animation-delay:0.14s;">
+            <div class="card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h5 class="fw-bold mb-1">Buyer history</h5>
+                        <p class="text-muted small mb-0">
+                            {% if selected_bidder %}
+                                Auctions {{ selected_bidder.username }} has bid on
+                            {% else %}
+                                Select a buyer to load their bidding history
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if bidder_auctions %}
+                        <span class="badge text-bg-dark badge-pill px-3 py-2">{{ bidder_auctions|length }}</span>
+                    {% endif %}
+                </div>
+
+                {% if bidder_auctions %}
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Item</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Max bid</th>
+                                    <th class="text-muted" style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;">Current / final</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in bidder_auctions %}
+                                    <tr>
+                                        <td class="fw-semibold">
+                                            <a href="{{ url_for('auctions.item_detail', item_id=item.id) }}" class="text-decoration-none" style="color:inherit;">
+                                                {{ item.title }}
+                                            </a>
+                                            <div class="text-muted small mt-1">
+                                                Seller
+                                                <a href="{{ url_for('search.activity', seller_id=item.seller_id) }}" class="text-decoration-none fw-semibold" style="color:var(--kb-accent);">
+                                                    {{ item.seller.username }}
+                                                </a>
+                                            </div>
+                                        </td>
+                                        <td class="fw-semibold">${{ '%.2f'|format(bidder_max_bids[item.id]) }}</td>
+                                        <td class="fw-bold" style="color:var(--kb-accent);">${{ '%.2f'|format(current_bids[item.id]) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">No buyer activity loaded.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,84 +1,132 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="container py-5" style="max-width: 860px;">
-    <div class="mb-4 fade-in-up">
+{% set form_values = form_values if form_values is defined else {
+    'title': '',
+    'brand': '',
+    'model_name': '',
+    'colorway': '',
+    'style_code': '',
+    'us_size': '',
+    'condition': 'New',
+    'category_id': selected_category|string if selected_category else '',
+    'box_included': true,
+    'description': '',
+    'start_price': '',
+    'reserve_price': '',
+    'bid_increment': '',
+    'close_time': '',
+    'image_url_override': '',
+} %}
+<div class="container py-5" style="max-width:860px;">
+    <div class="mb-5 fade-in-up">
         <div class="hero-kicker mb-2">Sell a pair</div>
         <h1 class="section-title mb-2">LIST YOUR AUCTION</h1>
         <p class="text-muted mb-0">Create a clean listing with the details collectors care about most.</p>
     </div>
 
-    <div class="card p-4 p-md-5 fade-in-up" style="animation-delay: 0.08s;">
-        <form method="POST">
-            <div class="row g-3">
+    <div class="card p-4 p-md-5 fade-in-up" style="animation-delay:0.08s;">
+        <form method="POST" enctype="multipart/form-data">
+            <!-- Section 1: Identity -->
+            <div class="d-flex align-items-center gap-3 mb-3 pb-2" style="border-bottom:1px solid rgba(15,23,42,0.08);">
+                <div class="hero-kicker mb-0">Sneaker identity</div>
+            </div>
+            <div class="row g-3 mb-5">
                 <div class="col-12">
                     <label class="form-label fw-semibold">Title *</label>
-                    <input type="text" name="title" class="form-control" placeholder="Air Jordan 1 Retro High OG Bred" required>
+                    <input type="text" name="title" value="{{ form_values.title }}" class="form-control" placeholder="Enter listing title" required>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Brand</label>
-                    <input type="text" name="brand" class="form-control" placeholder="Nike">
+                    <input type="text" name="brand" value="{{ form_values.brand }}" class="form-control" placeholder="Enter brand">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Model name</label>
-                    <input type="text" name="model_name" class="form-control" placeholder="Air Jordan 1">
+                    <input type="text" name="model_name" value="{{ form_values.model_name }}" class="form-control" placeholder="Enter model name">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Colorway</label>
-                    <input type="text" name="colorway" class="form-control" placeholder="Black / Red">
+                    <input type="text" name="colorway" value="{{ form_values.colorway }}" class="form-control" placeholder="Enter colorway">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Style code</label>
-                    <input type="text" name="style_code" class="form-control" placeholder="555088-001">
+                    <input type="text" name="style_code" value="{{ form_values.style_code }}" class="form-control" placeholder="Enter style code">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">US size</label>
-                    <input type="number" step="0.5" name="us_size" class="form-control" placeholder="10.5">
+                    <input type="number" step="0.5" name="us_size" value="{{ form_values.us_size }}" class="form-control" placeholder="Enter US size">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Condition</label>
                     <select name="condition" class="form-select">
-                        <option value="DS">DS (Deadstock)</option>
-                        <option value="VNDS">VNDS</option>
-                        <option value="Used">Used</option>
-                        <option value="Beater">Beater</option>
+                        <option value="New" {% if form_values.condition == 'New' %}selected{% endif %}>New</option>
+                        <option value="Like New" {% if form_values.condition == 'Like New' %}selected{% endif %}>Like New</option>
+                        <option value="Good" {% if form_values.condition == 'Good' %}selected{% endif %}>Good</option>
                     </select>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Category</label>
                     <select name="category_id" class="form-select">
                         {% for cat in categories %}
-                            <option value="{{ cat.id }}">{{ cat.name }}</option>
+                            <option value="{{ cat.id }}" {% if form_values.category_id == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Sneaker image URL</label>
+                    <input type="url" name="image_url_override" value="{{ form_values.image_url_override }}" class="form-control" placeholder="Paste an image URL if you have one">
+                    <div class="form-text">Optional. Use a direct image link ending in `.jpg`, `.jpeg`, `.png`, `.webp`, or `.gif`, or upload a file below.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Upload sneaker image</label>
+                    <input type="file" name="image_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/*">
+                    <div class="form-text">Optional. Uploaded photos are cleaned up automatically, saved as transparent PNGs, and may need to be chosen again if the form needs correction.</div>
+                </div>
                 <div class="col-12">
                     <div class="form-check">
-                        <input type="checkbox" name="box_included" class="form-check-input" id="boxCheck" checked>
-                        <label class="form-check-label fw-semibold" for="boxCheck">Box included</label>
+                        <input type="checkbox" name="box_included" class="form-check-input" id="boxCheck" {% if form_values.box_included %}checked{% endif %}>
+                        <label class="form-check-label fw-semibold" for="boxCheck">Original box included</label>
                     </div>
                 </div>
                 <div class="col-12">
                     <label class="form-label fw-semibold">Description</label>
-                    <textarea name="description" class="form-control" rows="4" placeholder="Condition details, flaws, what's included..."></textarea>
+                    <textarea name="description" class="form-control" rows="4" placeholder="Condition details, flaws, what's included...">{{ form_values.description }}</textarea>
                 </div>
+            </div>
+
+            <!-- Section 2: Pricing -->
+            <div class="d-flex align-items-center gap-3 mb-3 pb-2" style="border-bottom:1px solid rgba(15,23,42,0.08);">
+                <div class="hero-kicker mb-0">Pricing & timing</div>
+            </div>
+            <div class="row g-3">
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Start price *</label>
-                    <input type="number" step="0.01" min="0" name="start_price" class="form-control" required>
+                    <div class="input-group">
+                        <span class="input-group-text fw-semibold">$</span>
+                        <input type="number" step="0.01" min="0" name="start_price" value="{{ form_values.start_price }}" class="form-control" placeholder="Enter starting price" required>
+                    </div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Reserve price</label>
-                    <input type="number" step="0.01" min="0" name="reserve_price" class="form-control" value="0">
+                    <div class="input-group">
+                        <span class="input-group-text fw-semibold">$</span>
+                        <input type="number" step="0.01" min="0" name="reserve_price" value="{{ form_values.reserve_price }}" class="form-control" placeholder="Optional">
+                    </div>
+                    <div class="form-text">Hidden floor. Leave blank for no reserve.</div>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Bid increment</label>
-                    <input type="number" step="0.01" min="1" name="bid_increment" class="form-control" value="10">
+                    <div class="input-group">
+                        <span class="input-group-text fw-semibold">$</span>
+                        <input type="number" step="0.01" min="1" name="bid_increment" value="{{ form_values.bid_increment }}" class="form-control" placeholder="Enter minimum raise" required>
+                    </div>
+                    <div class="form-text">Minimum raise per bid.</div>
                 </div>
                 <div class="col-12">
                     <label class="form-label fw-semibold">Auction end date & time *</label>
-                    <input type="datetime-local" name="close_time" class="form-control" required>
+                    <input type="datetime-local" name="close_time" value="{{ form_values.close_time }}" class="form-control" required>
                 </div>
-                <div class="col-12 d-flex flex-wrap gap-2 pt-2">
-                    <button type="submit" class="btn btn-primary px-4">List auction</button>
+                <div class="col-12 d-flex flex-wrap gap-2 pt-3">
+                    <button type="submit" class="btn btn-primary px-5">List auction</button>
                     <a href="{{ url_for('search.browse') }}" class="btn btn-outline-secondary px-4">Cancel</a>
                 </div>
             </div>

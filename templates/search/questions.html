@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5" style="max-width:1080px;">
+    <div class="mb-5 fade-in-up">
+        <div class="hero-kicker mb-2">Support knowledge base</div>
+        <h1 class="section-title mb-2">QUESTIONS &amp; ANSWERS</h1>
+        <p class="text-muted mb-0">Browse buyer questions across auctions and search by keyword.</p>
+    </div>
+
+    <div class="card p-4 mb-4 fade-in-up" style="animation-delay:0.06s;">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-lg-8">
+                <label class="form-label fw-semibold">Keyword search</label>
+                <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search questions, answers, or item titles">
+            </div>
+            <div class="col-md-4 col-lg-2">
+                <label class="form-label fw-semibold">Answer status</label>
+                <select name="answered" class="form-select">
+                    <option value="" {% if not answered %}selected{% endif %}>All</option>
+                    <option value="yes" {% if answered == 'yes' %}selected{% endif %}>Answered</option>
+                    <option value="no" {% if answered == 'no' %}selected{% endif %}>Unanswered</option>
+                </select>
+            </div>
+            <div class="col-lg-2 d-grid">
+                <button type="submit" class="btn btn-primary">Search</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card p-4 fade-in-up" style="animation-delay:0.1s;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="fw-bold mb-0">Auction Q&amp;A</h5>
+            <span class="badge text-bg-dark badge-pill px-3 py-2">{{ questions|length }} results</span>
+        </div>
+
+        {% if questions %}
+            <div class="d-grid gap-3">
+                {% for question in questions %}
+                    <div class="question-item mb-0">
+                        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-2">
+                            <div>
+                                <div class="fw-semibold">Q: {{ question.body }}</div>
+                                <div class="text-muted small mt-1">
+                                    {{ question.user.username }} ·
+                                    <a href="{{ url_for('auctions.item_detail', item_id=question.item.id) }}" class="text-decoration-none fw-semibold" style="color:var(--kb-accent);">
+                                        {{ question.item.title }}
+                                    </a>
+                                </div>
+                            </div>
+                            {% if question.answers %}
+                                <span class="badge text-bg-success badge-pill">Answered</span>
+                            {% else %}
+                                <span class="badge text-bg-light text-dark border badge-pill">Pending</span>
+                            {% endif %}
+                        </div>
+                        {% for answer in question.answers %}
+                            <div class="answer-line">
+                                {{ answer.rep.username }}: {{ answer.body }}
+                            </div>
+                        {% else %}
+                            <div class="text-muted small mt-2">No reply yet.</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted mb-0">No questions matched your search.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

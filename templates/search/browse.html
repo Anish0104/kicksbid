@@ -1,28 +1,213 @@
 {% extends 'base.html' %}
+{% block extra_head %}
+<style>
+    .browse-shell {
+        padding-top: 1.5rem;
+        padding-bottom: 3.5rem;
+    }
+
+    .browse-intro {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 1rem;
+        align-items: end;
+        margin-bottom: 2rem;
+    }
+
+    .browse-ribbon {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #5d6471;
+        font-weight: 700;
+    }
+
+    .browse-ribbon::before {
+        content: "";
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 0.12rem;
+        background: var(--kb-ruby);
+    }
+
+    .browse-filter-panel {
+        margin-bottom: 2rem;
+        border: 1px solid rgba(18, 19, 22, 0.12);
+        border-radius: 1rem;
+        padding: 1.25rem;
+        background: rgba(255, 255, 255, 0.84);
+    }
+
+    .browse-filter-label {
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #5d6471;
+    }
+
+    .auction-card-market .sneaker-frame {
+        height: 198px;
+        min-height: 198px;
+        border-radius: 0.95rem;
+    }
+
+    .auction-card-market .sneaker-photo {
+        transition: transform 0.26s ease;
+    }
+
+    .auction-card-market:hover .sneaker-photo {
+        transform: scale(1.04);
+    }
+
+    .auction-meta-line {
+        font-size: 0.84rem;
+        color: #5d6471;
+    }
+
+    .auction-close-line {
+        border-top: 1px solid rgba(18, 19, 22, 0.08);
+        padding-top: 0.6rem;
+        margin-top: 0.8rem;
+        font-size: 0.8rem;
+        color: #5d6471;
+    }
+
+    .browse-empty-card {
+        padding: 3rem 2rem;
+    }
+
+    .browse-empty-actions {
+        display: flex;
+        justify-content: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 2rem;
+    }
+
+    .browse-empty-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        text-align: left;
+    }
+
+    .browse-empty-tile {
+        display: flex;
+        gap: 0.9rem;
+        align-items: center;
+        padding: 1rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(18, 19, 22, 0.08);
+        background: rgba(247, 249, 252, 0.8);
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .browse-empty-tile:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+        border-color: rgba(226, 74, 34, 0.18);
+    }
+
+    .browse-empty-art {
+        width: 72px;
+        height: 72px;
+        flex: 0 0 72px;
+        border-radius: 0.9rem;
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(236, 239, 245, 0.92));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        box-shadow: inset 0 0 0 1px rgba(18, 19, 22, 0.04);
+    }
+
+    .browse-empty-art img {
+        width: 86%;
+        height: auto;
+        object-fit: contain;
+        filter: drop-shadow(0 12px 16px rgba(15, 23, 42, 0.16));
+    }
+
+    .browse-empty-name {
+        font-weight: 800;
+        margin-bottom: 0.2rem;
+    }
+
+    .browse-empty-copy {
+        font-size: 0.9rem;
+        color: #5d6471;
+        margin: 0;
+    }
+
+    body.theme-dark .browse-filter-panel {
+        background: rgba(16, 23, 35, 0.9);
+        border-color: rgba(189, 200, 220, 0.16);
+    }
+
+    body.theme-dark .browse-ribbon,
+    body.theme-dark .browse-filter-label,
+    body.theme-dark .auction-meta-line,
+    body.theme-dark .auction-close-line,
+    body.theme-dark .browse-empty-copy {
+        color: #95a3bb;
+    }
+
+    body.theme-dark .browse-empty-tile {
+        background: rgba(16, 23, 35, 0.9);
+        border-color: rgba(189, 200, 220, 0.12);
+    }
+
+    body.theme-dark .browse-empty-art {
+        background: linear-gradient(145deg, rgba(27, 39, 59, 0.95), rgba(17, 27, 42, 0.9));
+        box-shadow: inset 0 0 0 1px rgba(189, 200, 220, 0.08);
+    }
+
+    @media (max-width: 991.98px) {
+        .browse-intro {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+</style>
+{% endblock %}
 {% block content %}
-<div class="container py-5">
-    <div class="row align-items-end g-4 mb-4">
-        <div class="col-lg-7 fade-in-up">
-            <div class="hero-kicker mb-2">Sneaker marketplace</div>
-            <h1 class="section-title mb-2">LIVE AUCTIONS</h1>
-            <p class="text-muted mb-0">Curated pairs, bold pricing, and a clean auction flow built for collectors.</p>
+{% set browse_sneaker_src = url_for('static', filename='images/landing-sneaker-cutout.png') %}
+<div class="container browse-shell">
+    <div class="browse-intro fade-in-up">
+        <div>
+            <div class="browse-ribbon">Market feed</div>
+            <h1 class="section-title mb-2">{% if selected_status == 'open' %}Live Auctions{% else %}Auction Directory{% endif %}</h1>
+            <p class="text-muted mb-0">Track lots in one clean view, then move straight to bid detail.</p>
         </div>
-        <div class="col-lg-5 text-lg-end fade-in-up" style="animation-delay: 0.08s;">
-            <div class="d-inline-flex flex-wrap gap-2 justify-content-lg-end">
-                <span class="badge text-bg-dark badge-pill px-3 py-2">{{ items|length }} pairs live</span>
-                <span class="badge text-bg-light text-dark border badge-pill px-3 py-2">Premium listings</span>
-            </div>
+        <div class="d-inline-flex flex-wrap gap-2">
+            <span class="badge text-bg-dark badge-pill px-3 py-2">{{ items|length }} results</span>
+            <span class="badge text-bg-light text-dark border badge-pill px-3 py-2">{{ categories|length }} categories</span>
         </div>
     </div>
 
-    <div class="card p-3 p-lg-4 mb-4 fade-in-up" style="animation-delay: 0.12s;">
+    <div class="browse-filter-panel fade-in-up" style="animation-delay:0.1s;">
         <form method="GET" class="row g-3 align-items-end">
             <div class="col-lg-4">
-                <label class="form-label fw-semibold small text-muted">Search</label>
+                <label class="form-label browse-filter-label">Search</label>
                 <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Brand, model, colorway...">
             </div>
             <div class="col-md-6 col-lg-2">
-                <label class="form-label fw-semibold small text-muted">Category</label>
+                <label class="form-label browse-filter-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="open" {% if selected_status == 'open' %}selected{% endif %}>Open</option>
+                    <option value="closed" {% if selected_status == 'closed' %}selected{% endif %}>Closed</option>
+                    <option value="no_winner" {% if selected_status == 'no_winner' %}selected{% endif %}>No winner</option>
+                    <option value="removed" {% if selected_status == 'removed' %}selected{% endif %}>Removed</option>
+                    <option value="all" {% if selected_status == 'all' %}selected{% endif %}>All statuses</option>
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="form-label browse-filter-label">Category</label>
                 <select name="category_id" class="form-select">
                     <option value="">All categories</option>
                     {% for cat in categories %}
@@ -31,31 +216,57 @@
                 </select>
             </div>
             <div class="col-md-6 col-lg-2">
-                <label class="form-label fw-semibold small text-muted">Condition</label>
+                <label class="form-label browse-filter-label">Condition</label>
                 <select name="condition" class="form-select">
                     <option value="">All conditions</option>
-                    {% for c in ['DS', 'VNDS', 'Used', 'Beater'] %}
+                    {% for c in ['New', 'Like New', 'Good'] %}
                         <option value="{{ c }}" {% if selected_condition == c %}selected{% endif %}>{{ c }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-md-6 col-lg-2">
-                <label class="form-label fw-semibold small text-muted">Sort</label>
+                <label class="form-label browse-filter-label">Sort By</label>
                 <select name="sort" class="form-select">
                     <option value="ending" {% if sort == 'ending' %}selected{% endif %}>Ending soonest</option>
                     <option value="price_low" {% if sort == 'price_low' %}selected{% endif %}>Price low to high</option>
                     <option value="price_high" {% if sort == 'price_high' %}selected{% endif %}>Price high to low</option>
                     <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest first</option>
+                    <option value="recently_closed" {% if sort == 'recently_closed' %}selected{% endif %}>Recently closed</option>
                 </select>
             </div>
             <div class="col-md-6 col-lg-2">
-                <label class="form-label fw-semibold small text-muted">Price range</label>
+                <label class="form-label browse-filter-label">Price Range</label>
                 <div class="input-group">
                     <input type="number" step="0.01" name="min_price" value="{{ min_price if min_price is not none else '' }}" class="form-control" placeholder="Min">
                     <input type="number" step="0.01" name="max_price" value="{{ max_price if max_price is not none else '' }}" class="form-control" placeholder="Max">
                 </div>
             </div>
-            <div class="col-12 d-flex gap-2">
+            <div class="col-md-6 col-lg-2">
+                <label class="form-label browse-filter-label">Brand</label>
+                <input type="text" name="brand" value="{{ selected_brand }}" class="form-control" placeholder="Filter by brand">
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="form-label browse-filter-label">Size</label>
+                <input type="number" step="0.5" name="us_size" value="{{ selected_us_size if selected_us_size is not none else '' }}" class="form-control" placeholder="Filter by size">
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <label class="form-label browse-filter-label">Seller</label>
+                <select name="seller_id" class="form-select">
+                    <option value="">All sellers</option>
+                    {% for seller in sellers %}
+                        <option value="{{ seller.id }}" {% if selected_seller == seller.id %}selected{% endif %}>{{ seller.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="form-label browse-filter-label">Box Included</label>
+                <select name="box_included" class="form-select">
+                    <option value="" {% if not selected_box_included %}selected{% endif %}>Either</option>
+                    <option value="yes" {% if selected_box_included == 'yes' %}selected{% endif %}>Yes</option>
+                    <option value="no" {% if selected_box_included == 'no' %}selected{% endif %}>No</option>
+                </select>
+            </div>
+            <div class="col-12 d-flex gap-2 pt-1 flex-wrap">
                 <button type="submit" class="btn btn-primary px-4">Search</button>
                 <a href="{{ url_for('search.browse') }}" class="btn btn-outline-secondary px-4">Reset</a>
             </div>
@@ -63,27 +274,67 @@
     </div>
 
     {% if not items %}
-        <div class="card p-5 text-center fade-in-up">
-            <h3 class="fw-bold mb-2">No sneakers found</h3>
-            <p class="text-muted mb-0">Try a different search or check back later for new listings.</p>
+        <div class="card text-center fade-in-up browse-empty-card">
+            <h3 class="fw-bold mb-2">No live sneakers yet</h3>
+            <p class="text-muted mb-4">The marketplace is ready, but there are no auction listings in the database that match these filters yet.</p>
+            <div class="browse-empty-actions">
+                <a href="{{ url_for('search.browse') }}" class="btn btn-outline-secondary px-4">Clear filters</a>
+                {% if current_user.is_authenticated and current_user.role in ['user', 'admin'] %}
+                    <a href="{{ url_for('auctions.create') }}" class="btn btn-primary px-4">List the first pair</a>
+                {% elif not current_user.is_authenticated %}
+                    <a href="{{ url_for('auth.register') }}" class="btn btn-primary px-4">Create an account</a>
+                {% endif %}
+            </div>
+            {% if categories %}
+                <div class="browse-empty-grid">
+                    {% for category in categories %}
+                        <a
+                            href="{% if current_user.is_authenticated and current_user.role in ['user', 'admin'] %}{{ url_for('auctions.create', category_id=category.id) }}{% else %}{{ url_for('search.browse', category_id=category.id) }}{% endif %}"
+                            class="browse-empty-tile"
+                        >
+                            <div class="browse-empty-art">
+                                <img src="{{ browse_sneaker_src }}" alt="{{ category.name }} sneaker">
+                            </div>
+                            <div>
+                                <div class="browse-empty-name">{{ category.name }}</div>
+                                <p class="browse-empty-copy">
+                                    {% if current_user.is_authenticated and current_user.role in ['user', 'admin'] %}
+                                        Start a real {{ category.name|lower }} listing.
+                                    {% else %}
+                                        Browse this sneaker category.
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </a>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                <div class="text-muted small mt-4">Admin listings are now supported, so you can post real sneakers from this account.</div>
+            {% endif %}
         </div>
     {% else %}
         <div class="row g-4">
             {% for item in items %}
-            <div class="col-sm-6 col-lg-4 col-xxl-3 fade-in-up" style="animation-delay: {{ loop.index0 * 0.04 }}s;">
-                <div class="card h-100 overflow-hidden">
+            <div class="col-sm-6 col-lg-4 col-xxl-3 fade-in-up" style="animation-delay:{{ loop.index0 * 0.04 }}s;">
+                <div class="card h-100 overflow-hidden auction-card auction-card-market">
                     <div class="p-3 pb-0">
                         <div class="sneaker-frame mb-3">
-                            <div class="sneaker-art">👟</div>
+                            <img src="{{ item.image_url }}" alt="{{ item.title }}" class="sneaker-photo" loading="lazy">
                         </div>
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
                             <span class="badge text-bg-dark badge-pill">{{ item.condition }}</span>
                             {% if (item.close_time - now).total_seconds() < 43200 and item.status == 'open' %}
-                                <span class="badge text-bg-danger badge-pill">Ending soon</span>
+                                <span class="badge badge-pill" style="background:rgba(226,74,34,0.12);color:var(--kb-ruby);border:1px solid rgba(226,74,34,0.24);font-size:0.72rem;">Ending soon</span>
+                            {% elif item.status != 'open' %}
+                                <span class="badge text-bg-light text-dark border badge-pill">{{ item.status.replace('_', ' ') }}</span>
                             {% endif %}
                         </div>
-                        <h5 class="fw-bold mb-1" style="line-height: 1.1;">{{ item.title }}</h5>
-                        <p class="text-muted mb-2 small">{{ item.brand }} | Size {{ item.us_size }} | {{ item.colorway }}</p>
+                        <h5 class="fw-bold mb-1" style="line-height:1.15;font-size:1rem;">{{ item.title }}</h5>
+                        <p class="auction-meta-line mb-2">
+                            {{ item.brand }} · Size {{ item.us_size }} · {{ item.colorway }}<br>
+                            Seller <a href="{{ url_for('search.activity', seller_id=item.seller_id) }}" class="text-decoration-none fw-semibold" style="color:var(--kb-ruby);">{{ item.seller.username }}</a>
+                        </p>
                     </div>
                     <div class="card-body pt-0 d-flex flex-column justify-content-between">
                         <div class="d-flex align-items-end justify-content-between gap-3">
@@ -91,10 +342,14 @@
                                 <div class="hero-kicker mb-1">Current bid</div>
                                 <div class="price-tag price-tag-accent">${{ '%.2f'|format(current_bids[item.id]) }}</div>
                             </div>
-                            <a href="{{ url_for('auctions.item_detail', item_id=item.id) }}" class="btn btn-primary">Bid now</a>
+                            <a href="{{ url_for('auctions.item_detail', item_id=item.id) }}" class="btn btn-primary btn-sm px-3">Bid now</a>
                         </div>
-                        <div class="mt-3 small text-muted">
-                            Closes {{ item.close_time.strftime('%b %d, %I:%M %p') }}
+                        <div class="auction-close-line">
+                            {% if item.status == 'open' %}
+                                Closes {{ item.close_time.strftime('%b %d, %I:%M %p') }}
+                            {% else %}
+                                Closed {{ item.close_time.strftime('%b %d, %I:%M %p') }}
+                            {% endif %}
                         </div>
                     </div>
                 </div>
