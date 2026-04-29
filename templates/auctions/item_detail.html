@@ -102,7 +102,7 @@
 
             <div class="card p-4 mb-4">
                 <div class="d-flex flex-wrap gap-2 mb-3">
-                    <span class="badge text-bg-dark badge-pill detail-chip">{{ item.condition }}</span>
+                    <span class="badge text-bg-dark badge-pill detail-chip">{{ item.condition.replace('_', ' ')|title }}</span>
                     <span class="badge text-bg-light text-dark border badge-pill detail-chip">{{ item.brand }}</span>
                     <span class="badge text-bg-light text-dark border badge-pill detail-chip">Size {{ item.us_size }}</span>
                     {% if item.box_included %}
@@ -120,7 +120,7 @@
                         {{ item.seller.username }}
                     </a>
                     {% if item.category %}
-                        · Category {{ item.category.name }}
+                        · Category {{ item.category.full_name }}
                     {% endif %}
                 </div>
                 {% if item.description %}
