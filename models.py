@@ -2,7 +2,18 @@ from datetime import datetime
 from typing import Optional
 
 from flask_login import UserMixin
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from extensions import db
@@ -45,11 +56,16 @@ FALLBACK_IMAGE_BY_BRAND = {
 
 
 def build_item_image_url(
+    item_id: Optional[int],
     style_code: str,
     brand: str,
     model_name: str,
     image_url_override: Optional[str] = None,
+    has_uploaded_image: bool = False,
 ) -> str:
+    if has_uploaded_image and item_id is not None:
+        return f"/auctions/{item_id}/image"
+
     if image_url_override:
         return image_url_override
 
@@ -68,6 +84,10 @@ def build_item_image_url(
 
 class User(UserMixin, db.Model):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'rep', 'admin', 'deleted')", name="ck_users_role"),
+        Index("idx_users_role_active", "role", "is_active"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
@@ -88,10 +108,16 @@ class User(UserMixin, db.Model):
 
 class Category(db.Model):
     __tablename__ = "categories"
+    __table_args__ = (
+        Index("idx_categories_parent_name", "parent_id", "name"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("categories.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=True,
+    )
 
     subcategories: Mapped[list["Category"]] = relationship(
         "Category",
@@ -107,9 +133,35 @@ class Category(db.Model):
     items: Mapped[list["Item"]] = relationship("Item", back_populates="category")
     alerts: Mapped[list["Alert"]] = relationship("Alert", back_populates="category")
 
+    @property
+    def full_name(self) -> str:
+        lineage = []
+        node = self
+        while node is not None:
+            lineage.append(node.name)
+            node = node.parent
+        return " > ".join(reversed(lineage))
+
 
 class Item(db.Model):
     __tablename__ = "items"
+    __table_args__ = (
+        CheckConstraint("start_price > 0", name="ck_items_start_price"),
+        CheckConstraint("reserve_price >= 0", name="ck_items_reserve_price"),
+        CheckConstraint("bid_increment > 0", name="ck_items_bid_increment"),
+        CheckConstraint("us_size > 0", name="ck_items_us_size"),
+        CheckConstraint(
+            "`condition` IN ('new', 'used', 'like_new', 'good', 'fair')",
+            name="ck_items_condition",
+        ),
+        CheckConstraint(
+            "status IN ('open', 'closed', 'no_winner', 'removed')",
+            name="ck_items_status",
+        ),
+        Index("idx_items_status_close", "status", "close_time"),
+        Index("idx_items_category_status_close", "category_id", "status", "close_time"),
+        Index("idx_items_seller_created", "seller_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -121,12 +173,19 @@ class Item(db.Model):
     condition: Mapped[str] = mapped_column(String(10), nullable=False)
     box_included: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
+    seller_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
     start_price: Mapped[float] = mapped_column(Float, nullable=False)
     reserve_price: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     bid_increment: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
     image_url_override: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    image_data: Mapped[Optional[bytes]] = mapped_column(LONGBLOB, nullable=True)
     close_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
@@ -140,19 +199,32 @@ class Item(db.Model):
     @property
     def image_url(self) -> str:
         return build_item_image_url(
+            self.id,
             self.style_code,
             self.brand,
             self.model_name,
             self.image_url_override,
+            self.image_data is not None,
         )
 
 
 class Bid(db.Model):
     __tablename__ = "bids"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_bids_amount"),
+        Index("idx_bids_item_amount_time", "item_id", "amount", "placed_at", "id"),
+        Index("idx_bids_bidder_time", "bidder_id", "placed_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), nullable=False)
-    bidder_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("items.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
+    bidder_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
     amount: Mapped[float] = mapped_column(Float, nullable=False)
     placed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     is_auto: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -163,10 +235,21 @@ class Bid(db.Model):
 
 class AutoBid(db.Model):
     __tablename__ = "autobids"
+    __table_args__ = (
+        CheckConstraint("upper_limit > 0", name="ck_autobids_upper_limit"),
+        UniqueConstraint("item_id", "bidder_id", name="uq_autobids_item_bidder"),
+        Index("idx_autobids_item_limit", "item_id", "upper_limit"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), nullable=False)
-    bidder_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("items.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
+    bidder_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
     upper_limit: Mapped[float] = mapped_column(Float, nullable=False)
 
     item: Mapped["Item"] = relationship("Item", back_populates="autobids")
@@ -175,10 +258,19 @@ class AutoBid(db.Model):
 
 class Alert(db.Model):
     __tablename__ = "alerts"
+    __table_args__ = (
+        Index("idx_alerts_user_category", "user_id", "category_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
     keywords: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="alerts")
@@ -187,10 +279,19 @@ class Alert(db.Model):
 
 class Question(db.Model):
     __tablename__ = "questions"
+    __table_args__ = (
+        Index("idx_questions_item_created", "item_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("items.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -201,10 +302,19 @@ class Question(db.Model):
 
 class Answer(db.Model):
     __tablename__ = "answers"
+    __table_args__ = (
+        Index("idx_answers_question_created", "question_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), nullable=False)
-    rep_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("questions.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
+    rep_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -214,9 +324,15 @@ class Answer(db.Model):
 
 class Notification(db.Model):
     __tablename__ = "notifications"
+    __table_args__ = (
+        Index("idx_notifications_user_read_time", "user_id", "is_read", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT", onupdate="CASCADE"),
+        nullable=False,
+    )
     message: Mapped[str] = mapped_column(String(500), nullable=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
