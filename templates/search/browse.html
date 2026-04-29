@@ -211,7 +211,7 @@
                 <select name="category_id" class="form-select">
                     <option value="">All categories</option>
                     {% for cat in categories %}
-                        <option value="{{ cat.id }}" {% if selected_category == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                        <option value="{{ cat.id }}" {% if selected_category == cat.id %}selected{% endif %}>{{ cat.full_name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -219,8 +219,8 @@
                 <label class="form-label browse-filter-label">Condition</label>
                 <select name="condition" class="form-select">
                     <option value="">All conditions</option>
-                    {% for c in ['New', 'Like New', 'Good'] %}
-                        <option value="{{ c }}" {% if selected_condition == c %}selected{% endif %}>{{ c }}</option>
+                    {% for c in ['new', 'like_new', 'used', 'good', 'fair'] %}
+                        <option value="{{ c }}" {% if selected_condition == c %}selected{% endif %}>{{ c.replace('_', ' ')|title }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -293,10 +293,10 @@
                             class="browse-empty-tile"
                         >
                             <div class="browse-empty-art">
-                                <img src="{{ browse_sneaker_src }}" alt="{{ category.name }} sneaker">
+                                <img src="{{ browse_sneaker_src }}" alt="{{ category.full_name }} sneaker">
                             </div>
                             <div>
-                                <div class="browse-empty-name">{{ category.name }}</div>
+                                <div class="browse-empty-name">{{ category.full_name }}</div>
                                 <p class="browse-empty-copy">
                                     {% if current_user.is_authenticated and current_user.role in ['user', 'admin'] %}
                                         Start a real {{ category.name|lower }} listing.
@@ -323,7 +323,7 @@
                             <img src="{{ item.image_url }}" alt="{{ item.title }}" class="sneaker-photo" loading="lazy">
                         </div>
                         <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                            <span class="badge text-bg-dark badge-pill">{{ item.condition }}</span>
+                            <span class="badge text-bg-dark badge-pill">{{ item.condition.replace('_', ' ')|title }}</span>
                             {% if (item.close_time - now).total_seconds() < 43200 and item.status == 'open' %}
                                 <span class="badge badge-pill" style="background:rgba(226,74,34,0.12);color:var(--kb-ruby);border:1px solid rgba(226,74,34,0.24);font-size:0.72rem;">Ending soon</span>
                             {% elif item.status != 'open' %}
