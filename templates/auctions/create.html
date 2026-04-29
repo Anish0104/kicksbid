@@ -7,7 +7,7 @@
     'colorway': '',
     'style_code': '',
     'us_size': '',
-    'condition': 'New',
+    'condition': 'new',
     'category_id': selected_category|string if selected_category else '',
     'box_included': true,
     'description': '',
@@ -15,7 +15,6 @@
     'reserve_price': '',
     'bid_increment': '',
     'close_time': '',
-    'image_url_override': '',
 } %}
 <div class="container py-5" style="max-width:860px;">
     <div class="mb-5 fade-in-up">
@@ -58,28 +57,25 @@
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Condition</label>
                     <select name="condition" class="form-select">
-                        <option value="New" {% if form_values.condition == 'New' %}selected{% endif %}>New</option>
-                        <option value="Like New" {% if form_values.condition == 'Like New' %}selected{% endif %}>Like New</option>
-                        <option value="Good" {% if form_values.condition == 'Good' %}selected{% endif %}>Good</option>
+                        <option value="new" {% if form_values.condition == 'new' %}selected{% endif %}>New</option>
+                        <option value="like_new" {% if form_values.condition == 'like_new' %}selected{% endif %}>Like New</option>
+                        <option value="used" {% if form_values.condition == 'used' %}selected{% endif %}>Used</option>
+                        <option value="good" {% if form_values.condition == 'good' %}selected{% endif %}>Good</option>
+                        <option value="fair" {% if form_values.condition == 'fair' %}selected{% endif %}>Fair</option>
                     </select>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-semibold">Category</label>
-                    <select name="category_id" class="form-select">
-                        {% for cat in categories %}
-                            <option value="{{ cat.id }}" {% if form_values.category_id == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
-                        {% endfor %}
-                    </select>
+                        <select name="category_id" class="form-select">
+                            {% for cat in categories %}
+                                <option value="{{ cat.id }}" {% if form_values.category_id == cat.id|string %}selected{% endif %}>{{ cat.full_name }}</option>
+                            {% endfor %}
+                        </select>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold">Sneaker image URL</label>
-                    <input type="url" name="image_url_override" value="{{ form_values.image_url_override }}" class="form-control" placeholder="Paste an image URL if you have one">
-                    <div class="form-text">Optional. Use a direct image link ending in `.jpg`, `.jpeg`, `.png`, `.webp`, or `.gif`, or upload a file below.</div>
-                </div>
-                <div class="col-md-6">
+                <div class="col-12">
                     <label class="form-label fw-semibold">Upload sneaker image</label>
                     <input type="file" name="image_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif,image/*">
-                    <div class="form-text">Optional. Uploaded photos are cleaned up automatically, saved as transparent PNGs, and may need to be chosen again if the form needs correction.</div>
+                    <div class="form-text">Optional. Uploaded photos are cleaned up automatically, saved in the shared database as transparent PNGs, and may need to be chosen again if the form needs correction.</div>
                 </div>
                 <div class="col-12">
                     <div class="form-check">
