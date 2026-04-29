@@ -5,6 +5,8 @@ from werkzeug.security import generate_password_hash
 
 from app import app
 from db_artifacts import install_database_artifacts
+from sqlalchemy import text
+
 from extensions import db
 from models import Alert, Category, Item, User
 
@@ -169,6 +171,155 @@ def bootstrap_admin(username, email, password):
     return created, admin
 
 
+def load_sql_sample_data():
+    # Break your SQL script into individual executable statements
+    queries = [
+        """
+        INSERT IGNORE INTO users (username, email, password_hash, role, is_active, created_at) VALUES
+        ('jordan_fan', 'jordan@example.com', 'scrypt:32768:8:1$abc$hashedpw1', 'user', 1, NOW() - INTERVAL 30 DAY),
+        ('sneakerhead_nj', 'sneaker@example.com', 'scrypt:32768:8:1$abc$hashedpw2', 'user', 1, NOW() - INTERVAL 25 DAY),
+        ('kicks_collector', 'collector@example.com', 'scrypt:32768:8:1$abc$hashedpw3', 'user', 1, NOW() - INTERVAL 20 DAY),
+        ('sole_seller', 'seller@example.com', 'scrypt:32768:8:1$abc$hashedpw4', 'user', 1, NOW() - INTERVAL 15 DAY),
+        ('rep_mike', 'rep@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw5', 'rep', 1, NOW() - INTERVAL 60 DAY)
+        """,
+        "DROP TEMPORARY TABLE IF EXISTS tmp_cats",
+        """
+        CREATE TEMPORARY TABLE tmp_cats AS
+        SELECT c4.id, CONCAT(c1.name, ' > ', c2.name, ' > ', c3.name, ' > ', c4.name) AS full_path
+        FROM categories c1
+        JOIN categories c2 ON c2.parent_id = c1.id
+        JOIN categories c3 ON c3.parent_id = c2.id
+        JOIN categories c4 ON c4.parent_id = c3.id
+        """,
+        """
+        INSERT IGNORE INTO items (
+          title, brand, model_name, colorway, style_code,
+          us_size, condition, box_included, description,
+          seller_id, category_id,
+          start_price, reserve_price, bid_increment,
+          close_time, status, created_at
+        )
+        SELECT
+          'Air Jordan 1 Retro High OG Chicago',
+          'Nike', 'Air Jordan 1 Retro High OG', 'White/Black-Varsity Red', '555088-101',
+          10.5, 'new', 1,
+          'Deadstock AJ1 Chicago colorway. Never worn, tried on once indoors. All tags attached. OG box included.',
+          (SELECT id FROM users WHERE username = 'sole_seller'),
+          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Retro > High Top'),
+          350.00, 400.00, 10.00,
+          NOW() + INTERVAL 5 DAY, 'open', NOW() - INTERVAL 2 DAY
+        UNION ALL SELECT
+          'Nike Dunk Low Panda',
+          'Nike', 'Dunk Low', 'White/Black', 'DD1391-100',
+          9.0, 'like_new', 1,
+          'Worn twice. No creasing. Box included. Classic Panda colorway that goes with everything.',
+          (SELECT id FROM users WHERE username = 'jordan_fan'),
+          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Skate > Dunk-Inspired'),
+          120.00, 140.00, 5.00,
+          NOW() + INTERVAL 3 DAY, 'open', NOW() - INTERVAL 1 DAY
+        UNION ALL SELECT
+          'Adidas Yeezy Boost 350 V2 Zebra',
+          'Adidas', 'Yeezy Boost 350 V2', 'White/Core Black/Red', 'CP9654',
+          11.0, 'new', 1,
+          'Brand new Zebra Yeezy. Purchased from Adidas confirmed app. 100% authentic with receipt.',
+          (SELECT id FROM users WHERE username = 'sneakerhead_nj'),
+          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Collector > Limited > Regional Exclusive'),
+          280.00, 320.00, 10.00,
+          NOW() + INTERVAL 7 DAY, 'open', NOW() - INTERVAL 3 DAY
+        UNION ALL SELECT
+          'Nike Air Max 90 Infrared',
+          'Nike', 'Air Max 90', 'White/Black-Infrared', 'CT1685-100',
+          10.0, 'good', 0,
+          'OG AM90 Infrared. Light wear on outsole. Box not included. Cleaned and ready to ship.',
+          (SELECT id FROM users WHERE username = 'kicks_collector'),
+          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Casual > Court Classic'),
+          85.00, 100.00, 5.00,
+          NOW() + INTERVAL 4 DAY, 'open', NOW() - INTERVAL 4 DAY
+        UNION ALL SELECT
+          'Jordan 4 Retro Military Black',
+          'Nike', 'Air Jordan 4 Retro', 'Black/Dark Charcoal-Light Graphite', 'DH7138-006',
+          9.5, 'new', 1,
+          'Military Black 4s. Copped from SNKRS. Legit check available. Ships double boxed.',
+          (SELECT id FROM users WHERE username = 'sole_seller'),
+          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Retro > Low Top'),
+          300.00, 350.00, 10.00,
+          NOW() + INTERVAL 6 DAY, 'open', NOW() - INTERVAL 1 DAY
+        UNION ALL SELECT
+          'New Balance 990v5 Made in USA Grey',
+          'New Balance', '990v5', 'Grey/White', 'M990GL5',
+          11.5, 'like_new', 1,
+          'MiUSA 990v5 in classic grey. Worn 3 times. Perfect condition. Original box and extra laces.',
+          (SELECT id FROM users WHERE username = 'sneakerhead_nj'),
+          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Performance > Running > Daily Trainer'),
+          155.00, 180.00, 5.00,
+          NOW() + INTERVAL 8 DAY, 'open', NOW() - INTERVAL 2 DAY
+        """,
+        """
+        INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto)
+        SELECT i.id, u.id, 360.00, NOW() - INTERVAL 1 DAY, 0
+        FROM items i, users u
+        WHERE i.title = 'Air Jordan 1 Retro High OG Chicago' AND u.username = 'sneakerhead_nj'
+        """,
+        """
+        INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto)
+        SELECT i.id, u.id, 370.00, NOW() - INTERVAL 12 HOUR, 0
+        FROM items i, users u
+        WHERE i.title = 'Air Jordan 1 Retro High OG Chicago' AND u.username = 'kicks_collector'
+        """,
+        """
+        INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto)
+        SELECT i.id, u.id, 125.00, NOW() - INTERVAL 10 HOUR, 0
+        FROM items i, users u
+        WHERE i.title = 'Nike Dunk Low Panda' AND u.username = 'kicks_collector'
+        """,
+        """
+        INSERT INTO autobids (item_id, bidder_id, upper_limit)
+        SELECT i.id, u.id, 400.00
+        FROM items i, users u
+        WHERE i.title = 'Adidas Yeezy Boost 350 V2 Zebra' AND u.username = 'jordan_fan'
+        """,
+        """
+        INSERT INTO notifications (user_id, message, is_read, created_at)
+        SELECT u.id, 'You have been outbid on Air Jordan 1 Retro High OG Chicago. Current bid: $370.00', 0, NOW() - INTERVAL 12 HOUR
+        FROM users u WHERE u.username = 'sneakerhead_nj'
+        """,
+        """
+        INSERT INTO notifications (user_id, message, is_read, created_at)
+        SELECT u.id, 'Your listing "Nike Dunk Low Panda" received a new bid of $125.00!', 0, NOW() - INTERVAL 10 HOUR
+        FROM users u WHERE u.username = 'jordan_fan'
+        """,
+        """
+        INSERT INTO questions (user_id, item_id, body, created_at)
+        SELECT u.id, i.id, 'Does the box have any damage? Also is the size US 10.5 or EU?', NOW() - INTERVAL 18 HOUR
+        FROM users u, items i
+        WHERE u.username = 'kicks_collector' AND i.title = 'Air Jordan 1 Retro High OG Chicago'
+        """,
+        """
+        INSERT INTO answers (question_id, rep_id, body, created_at)
+        SELECT q.id, u.id, 'The box is in excellent condition with minimal shelf wear. US 10.5 = EU 44.5.', NOW() - INTERVAL 15 HOUR
+        FROM questions q, users u
+        WHERE q.body LIKE '%Does the box have any damage%' AND u.username = 'rep_mike'
+        """,
+        """
+        INSERT INTO alerts (user_id, category_id, keywords)
+        SELECT u.id, c.id, 'Jordan retro'
+        FROM users u, tmp_cats c
+        WHERE u.username = 'sneakerhead_nj' AND c.full_path = 'Sneakers > Lifestyle > Retro > High Top'
+        """,
+        """
+        INSERT INTO alerts (user_id, category_id, keywords)
+        SELECT u.id, c.id, 'Yeezy'
+        FROM users u, tmp_cats c
+        WHERE u.username = 'kicks_collector' AND c.full_path = 'Sneakers > Collector > Limited > Regional Exclusive'
+        """,
+        "DROP TEMPORARY TABLE IF EXISTS tmp_cats"
+    ]
+
+    with db.engine.begin() as conn:
+        for q in queries:
+            conn.execute(text(q))
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Initialize required KicksBid reference data and database artifacts."
@@ -176,6 +327,7 @@ def parse_args():
     parser.add_argument("--admin-username")
     parser.add_argument("--admin-email")
     parser.add_argument("--admin-password")
+    parser.add_argument("--load-samples", action="store_true", help="Load the demo SQL sample data")
     return parser.parse_args()
 
 
@@ -220,6 +372,13 @@ def main():
         created, admin = admin_result
         verb = "Created" if created else "Updated"
         print(f"{verb} admin account: {admin.username} ({admin.email})")
+
+        if args.load_samples:
+            try:
+                load_sql_sample_data()
+                print("Loaded custom SQL sample data successfully.")
+            except Exception as e:
+                print(f"Failed to load sample data: {e}")
 
         if artifact_result["skipped"]:
             print("Skipped database artifacts because the active database is not MySQL.")
