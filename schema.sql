@@ -29,7 +29,7 @@ DROP TABLE IF EXISTS `bids`;
 DROP TABLE IF EXISTS `items`;
 DROP TABLE IF EXISTS `categories`;
 DROP TABLE IF EXISTS `users`;
-
+fn_get_current_bidkeywordscategory_idcategory_iduser_id
 SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE `users` (
