@@ -1,11 +1,11 @@
 import os
-from datetime import datetime
 
 from flask import Flask, render_template
 from flask_login import current_user
 from extensions import db, login_manager
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import joinedload
+from time_utils import current_time
 
 app = Flask(__name__)
 
@@ -45,6 +45,9 @@ with app.app_context():
         if "text" not in image_column_type:
             db.session.execute(text("ALTER TABLE items MODIFY COLUMN image_url_override TEXT"))
             db.session.commit()
+    if "image_data" not in item_columns:
+        db.session.execute(text("ALTER TABLE items ADD COLUMN image_data LONGBLOB NULL"))
+        db.session.commit()
 
 os.makedirs(os.path.join(app.root_path, "static", "uploads", "items"), exist_ok=True)
 app.config["ITEM_UPLOAD_FOLDER"] = os.path.join(app.root_path, "static", "uploads", "items")
@@ -66,7 +69,7 @@ def format_time_left(close_time, now):
 def build_landing_context():
     from models import Bid, Item, User
 
-    now = datetime.utcnow()
+    now = current_time()
     bid_summary = (
         db.session.query(
             Bid.item_id.label("item_id"),
