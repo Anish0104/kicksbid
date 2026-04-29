@@ -1392,7 +1392,6 @@
             <div class="landing-hero fade-in-up" data-landing-hero>
             <div class="hero-grid">
                 <div>
-                    <div class="landing-kicker">Live sneaker auctions</div>
                     <h1 class="landing-headline">Bid on the pairs that <span>move the market.</span></h1>
                     <p class="landing-subcopy">
                         KicksBid is built for collectors who want a cleaner auction flow: stronger listing detail,
@@ -1468,7 +1467,7 @@
                                     <img src="{{ feature.item.image_url }}" alt="{{ feature.item.title }}" class="auction-card-image" loading="lazy">
                                 </div>
                                 <div class="auction-card-badges">
-                                    <span class="badge text-bg-dark badge-pill">{{ feature.item.condition }}</span>
+                                    <span class="badge text-bg-dark badge-pill">{{ feature.item.condition.replace('_', ' ')|title }}</span>
                                     <span class="badge text-bg-light text-dark border badge-pill">{{ feature.time_left }}</span>
                                 </div>
                                 <div class="auction-card-visual-copy">

@@ -1,11 +1,10 @@
-from datetime import datetime
-
 from flask import Blueprint, render_template, request
 from flask_login import current_user
 from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
 
 from models import Answer, Bid, Category, Item, Question, User
+from time_utils import current_time
 
 search_bp = Blueprint("search", __name__, url_prefix="/search")
 
@@ -15,9 +14,31 @@ def get_current_bid(item):
     return max((bid.amount for bid in bids), default=item.start_price)
 
 
+def get_leaf_categories():
+    categories = Category.query.filter(~Category.subcategories.any()).all()
+    return sorted(categories, key=lambda category: category.full_name.lower())
+
+
+def get_category_scope_ids(category_id):
+    if not category_id:
+        return []
+
+    category = Category.query.get(category_id)
+    if category is None:
+        return []
+
+    scoped_ids = [category.id]
+    stack = list(category.subcategories)
+    while stack:
+        node = stack.pop()
+        scoped_ids.append(node.id)
+        stack.extend(node.subcategories)
+    return scoped_ids
+
+
 @search_bp.route("/browse")
 def browse():
-    now = datetime.utcnow()
+    now = current_time()
     query = Item.query.options(selectinload(Item.seller), selectinload(Item.category))
 
     q = request.args.get("q", "").strip()
@@ -50,7 +71,9 @@ def browse():
         )
 
     if category_id:
-        query = query.filter_by(category_id=category_id)
+        scoped_ids = get_category_scope_ids(category_id)
+        if scoped_ids:
+            query = query.filter(Item.category_id.in_(scoped_ids))
 
     if condition:
         query = query.filter_by(condition=condition)
@@ -88,7 +111,7 @@ def browse():
     elif sort == "price_high":
         items = sorted(items, key=get_current_bid, reverse=True)
 
-    categories = Category.query.filter(Category.parent_id.isnot(None)).order_by(Category.name.asc()).all()
+    categories = get_leaf_categories()
     sellers = User.query.filter_by(role="user").order_by(User.username.asc()).all()
     current_bids = {item.id: get_current_bid(item) for item in items}
 

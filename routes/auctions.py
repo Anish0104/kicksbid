@@ -1,9 +1,7 @@
-import os
+from io import BytesIO
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
-from uuid import uuid4
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
@@ -12,18 +10,10 @@ from werkzeug.utils import secure_filename
 from extensions import db
 from image_utils import build_item_cutout, build_processed_item_filename
 from models import Alert, Answer, AutoBid, Bid, Category, Item, Notification, Question, User
+from time_utils import current_time
 
 auctions_bp = Blueprint("auctions", __name__, url_prefix="/auctions")
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "gif"}
-DISALLOWED_IMAGE_HOSTS = {
-    "google.com",
-    "www.google.com",
-    "bing.com",
-    "www.bing.com",
-    "search.yahoo.com",
-    "yahoo.com",
-    "www.yahoo.com",
-}
 
 
 def ensure_end_user():
@@ -40,6 +30,11 @@ def ensure_listing_seller():
     return True
 
 
+def get_leaf_categories():
+    categories = Category.query.filter(~Category.subcategories.any()).all()
+    return sorted(categories, key=lambda category: category.full_name.lower())
+
+
 def build_listing_form_values(selected_category=None):
     default_category = str(selected_category) if selected_category else ""
     return {
@@ -49,7 +44,7 @@ def build_listing_form_values(selected_category=None):
         "colorway": request.form.get("colorway", "").strip(),
         "style_code": request.form.get("style_code", "").strip(),
         "us_size": request.form.get("us_size", "").strip(),
-        "condition": request.form.get("condition", "New"),
+        "condition": request.form.get("condition", "new").strip().lower(),
         "category_id": request.form.get("category_id", default_category),
         "box_included": request.form.get("box_included", "on") == "on",
         "description": request.form.get("description", "").strip(),
@@ -57,7 +52,6 @@ def build_listing_form_values(selected_category=None):
         "reserve_price": request.form.get("reserve_price", "").strip(),
         "bid_increment": request.form.get("bid_increment", "").strip(),
         "close_time": request.form.get("close_time", "").strip(),
-        "image_url_override": request.form.get("image_url_override", "").strip(),
     }
 
 
@@ -70,36 +64,6 @@ def render_create_form(categories, selected_category=None):
     )
 
 
-def validate_image_url(image_url):
-    if not image_url:
-        return False, "Please provide an image URL."
-
-    if len(image_url) > 500:
-        return False, "Image URL is too long. Please paste a direct image link, not a search results page."
-
-    if image_url.startswith("/static/"):
-        extension = image_url.rsplit(".", 1)[-1].lower() if "." in image_url else ""
-        if extension not in ALLOWED_IMAGE_EXTENSIONS:
-            allowed = ", ".join(sorted(ALLOWED_IMAGE_EXTENSIONS))
-            return False, f"Image must be one of: {allowed}."
-        return True, None
-
-    parsed = urlparse(image_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return False, "Please provide a valid image URL."
-
-    host = parsed.netloc.lower()
-    if host in DISALLOWED_IMAGE_HOSTS or parsed.path.lower().startswith("/search"):
-        return False, "Please paste a direct image link ending in .jpg, .jpeg, .png, .webp, or .gif, not a search page."
-
-    extension = parsed.path.rsplit(".", 1)[-1].lower() if "." in parsed.path else ""
-    if extension not in ALLOWED_IMAGE_EXTENSIONS:
-        allowed = ", ".join(sorted(ALLOWED_IMAGE_EXTENSIONS))
-        return False, f"Please use a direct image URL ending in one of: {allowed}."
-
-    return True, None
-
-
 def save_uploaded_item_image(image_file):
     filename = secure_filename(image_file.filename or "")
     if not filename:
@@ -110,25 +74,30 @@ def save_uploaded_item_image(image_file):
         allowed = ", ".join(sorted(ALLOWED_IMAGE_EXTENSIONS))
         return None, f"Image must be one of: {allowed}."
 
-    destination = current_app.config["ITEM_UPLOAD_FOLDER"]
-
     try:
         image_file.stream.seek(0)
         processed_image = build_item_cutout(image_file.stream)
     except Exception:
         return None, "We could not process that image. Please upload a clear sneaker photo in JPG, PNG, WEBP, or GIF format."
 
-    stored_name = f"{uuid4().hex}-{build_processed_item_filename(filename)}"
-    processed_image.save(os.path.join(destination, stored_name), format="PNG")
-    return f"/static/uploads/items/{stored_name}", None
+    output = BytesIO()
+    processed_image.save(output, format="PNG")
+    output.seek(0)
+    return output.read(), None
 
 
-def get_leading_bid(item_id):
-    return (
-        Bid.query.filter_by(item_id=item_id)
-        .order_by(Bid.amount.desc(), Bid.placed_at.asc(), Bid.id.asc())
-        .first()
-    )
+def get_leading_bid(item_id, for_update=False):
+    query = Bid.query.filter_by(item_id=item_id).order_by(Bid.amount.desc(), Bid.placed_at.asc(), Bid.id.asc())
+    if for_update:
+        query = query.with_for_update()
+    return query.first()
+
+
+def get_locked_item_or_404(item_id):
+    item = Item.query.filter_by(id=item_id).with_for_update().first()
+    if item is None:
+        abort(404)
+    return item
 
 
 def get_current_bid(item):
@@ -200,7 +169,7 @@ def close_auction(item, commit=True):
 
 
 def close_expired_auctions():
-    expired_items = Item.query.filter(Item.status == "open", Item.close_time <= datetime.utcnow()).all()
+    expired_items = Item.query.filter(Item.status == "open", Item.close_time <= current_time()).all()
     if not expired_items:
         return 0
 
@@ -212,11 +181,52 @@ def close_expired_auctions():
 
 
 def maybe_close_item(item):
-    if item.status == "open" and item.close_time <= datetime.utcnow():
+    if item.status == "open" and item.close_time <= current_time():
         close_auction(item)
 
 
-def resolve_autobids(item):
+def recalculate_item_status(item):
+    if item.status == "removed":
+        return
+
+    leading_bid = get_leading_bid(item.id)
+    if item.close_time > current_time():
+        item.status = "open"
+    elif leading_bid and leading_bid.amount >= item.reserve_price:
+        item.status = "closed"
+    else:
+        item.status = "no_winner"
+
+
+def restore_autobid_visibility(item):
+    Bid.query.filter_by(item_id=item.id, is_auto=True).delete()
+    db.session.flush()
+
+    leading_bid = get_leading_bid(item.id)
+
+    if leading_bid is None:
+        leading_autobid = (
+            AutoBid.query.filter_by(item_id=item.id)
+            .order_by(AutoBid.upper_limit.desc(), AutoBid.id.asc())
+            .first()
+        )
+        if leading_autobid is not None:
+            opening_amount = min(item.start_price + item.bid_increment, leading_autobid.upper_limit)
+            db.session.add(
+                Bid(
+                    item_id=item.id,
+                    bidder_id=leading_autobid.bidder_id,
+                    amount=opening_amount,
+                    is_auto=True,
+                )
+            )
+            db.session.flush()
+            resolve_autobids(item, last_bid_amount=opening_amount, last_bidder_id=leading_autobid.bidder_id)
+    else:
+        resolve_autobids(item, last_bid_amount=leading_bid.amount, last_bidder_id=leading_bid.bidder_id)
+
+
+def resolve_autobids(item, last_bid_amount=None, last_bidder_id=None):
     placed_auto_bids = []
 
     while True:
@@ -291,7 +301,7 @@ def notify_bid_activity(item, previous_leader_id):
 
 
 def build_similar_items(item, limit=5):
-    now = datetime.utcnow()
+    now = current_time()
     window_start = now - timedelta(days=30)
     candidates = (
         Item.query.options(selectinload(Item.seller), selectinload(Item.category), selectinload(Item.bids))
@@ -379,26 +389,25 @@ def item_detail(item_id):
     )
 
 
+@auctions_bp.route("/<int:item_id>/image")
+def item_image(item_id):
+    item = db.get_or_404(Item, item_id)
+    if not item.image_data:
+        abort(404)
+
+    return send_file(
+        BytesIO(item.image_data),
+        mimetype="image/png",
+        download_name=build_processed_item_filename(item.title or f"item-{item.id}"),
+        max_age=300,
+    )
+
+
 @auctions_bp.route("/<int:item_id>/bid", methods=["POST"])
 @login_required
 def place_bid(item_id):
     if not ensure_end_user():
         return redirect(url_for("auctions.item_detail", item_id=item_id))
-
-    item = db.get_or_404(Item, item_id)
-    maybe_close_item(item)
-
-    if item.status != "open":
-        flash("This auction is no longer open.", "error")
-        return redirect(url_for("auctions.item_detail", item_id=item_id))
-
-    if current_user.id == item.seller_id:
-        flash("You cannot bid on your own auction.", "error")
-        return redirect(url_for("auctions.item_detail", item_id=item_id))
-
-    current_bid = get_current_bid(item)
-    min_next = current_bid + item.bid_increment
-    previous_leader = get_leading_bid(item_id)
 
     try:
         amount = float(request.form.get("amount", ""))
@@ -406,23 +415,48 @@ def place_bid(item_id):
         flash("Invalid bid amount.", "error")
         return redirect(url_for("auctions.item_detail", item_id=item_id))
 
-    if amount < min_next:
-        flash(f"Bid must be at least ${min_next:.2f}.", "error")
-        return redirect(url_for("auctions.item_detail", item_id=item_id))
+    try:
+        item = get_locked_item_or_404(item_id)
 
-    db.session.add(
-        Bid(
-            item_id=item_id,
-            bidder_id=current_user.id,
-            amount=amount,
-            is_auto=False,
+        if item.status == "open" and item.close_time <= current_time():
+            close_auction(item, commit=False)
+
+        if item.status != "open":
+            db.session.commit()
+            flash("This auction is no longer open.", "error")
+            return redirect(url_for("auctions.item_detail", item_id=item_id))
+
+        if current_user.id == item.seller_id:
+            db.session.rollback()
+            flash("You cannot bid on your own auction.", "error")
+            return redirect(url_for("auctions.item_detail", item_id=item_id))
+
+        current_bid = get_current_bid(item)
+        min_next = current_bid + item.bid_increment
+        previous_leader = get_leading_bid(item_id, for_update=True)
+
+        if amount < min_next:
+            db.session.rollback()
+            flash(f"Bid must be at least ${min_next:.2f}.", "error")
+            return redirect(url_for("auctions.item_detail", item_id=item_id))
+
+        db.session.add(
+            Bid(
+                item_id=item_id,
+                bidder_id=current_user.id,
+                amount=amount,
+                is_auto=False,
+            )
         )
-    )
-    db.session.flush()
+        db.session.flush()
 
-    resolve_autobids(item)
-    leading_bid = notify_bid_activity(item, previous_leader.bidder_id if previous_leader else None)
-    db.session.commit()
+        resolve_autobids(item, last_bid_amount=amount, last_bidder_id=current_user.id)
+        leading_bid = notify_bid_activity(item, previous_leader.bidder_id if previous_leader else None)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        flash("We could not record your bid right now. Please try again.", "error")
+        return redirect(url_for("auctions.item_detail", item_id=item_id))
 
     if leading_bid and leading_bid.bidder_id == current_user.id:
         flash(f"Bid of ${amount:.2f} placed successfully. You are currently leading.", "success")
@@ -441,46 +475,62 @@ def set_autobid(item_id):
     if not ensure_end_user():
         return redirect(url_for("auctions.item_detail", item_id=item_id))
 
-    item = db.get_or_404(Item, item_id)
-    maybe_close_item(item)
-
-    if item.status != "open":
-        flash("This auction is no longer open.", "error")
-        return redirect(url_for("auctions.item_detail", item_id=item_id))
-
-    if current_user.id == item.seller_id:
-        flash("You cannot auto-bid on your own auction.", "error")
-        return redirect(url_for("auctions.item_detail", item_id=item_id))
-
-    current_bid = get_current_bid(item)
-    min_next = current_bid + item.bid_increment
-    previous_leader = get_leading_bid(item_id)
-
     try:
         upper_limit = float(request.form.get("upper_limit", ""))
     except ValueError:
         flash("Invalid amount.", "error")
         return redirect(url_for("auctions.item_detail", item_id=item_id))
 
-    if upper_limit < min_next:
-        flash(f"Auto-bid limit must be at least ${min_next:.2f}.", "error")
+    try:
+        item = get_locked_item_or_404(item_id)
+
+        if item.status == "open" and item.close_time <= current_time():
+            close_auction(item, commit=False)
+
+        if item.status != "open":
+            db.session.commit()
+            flash("This auction is no longer open.", "error")
+            return redirect(url_for("auctions.item_detail", item_id=item_id))
+
+        if current_user.id == item.seller_id:
+            db.session.rollback()
+            flash("You cannot auto-bid on your own auction.", "error")
+            return redirect(url_for("auctions.item_detail", item_id=item_id))
+
+        current_bid = get_current_bid(item)
+        min_next = current_bid + item.bid_increment
+        previous_leader = get_leading_bid(item_id, for_update=True)
+        is_current_leader = previous_leader is not None and previous_leader.bidder_id == current_user.id
+        minimum_limit = current_bid if is_current_leader else min_next
+
+        if upper_limit < minimum_limit:
+            db.session.rollback()
+            label = "current bid" if is_current_leader else "minimum next bid"
+            flash(f"Auto-bid limit must be at least the {label} of ${minimum_limit:.2f}.", "error")
+            return redirect(url_for("auctions.item_detail", item_id=item_id))
+
+        AutoBid.query.filter_by(item_id=item_id, bidder_id=current_user.id).delete()
+        db.session.add(AutoBid(item_id=item_id, bidder_id=current_user.id, upper_limit=upper_limit))
+
+        leading_bid = previous_leader
+        if not is_current_leader:
+            db.session.add(
+                Bid(
+                    item_id=item_id,
+                    bidder_id=current_user.id,
+                    amount=min_next,
+                    is_auto=True,
+                )
+            )
+            db.session.flush()
+            resolve_autobids(item, last_bid_amount=min_next, last_bidder_id=current_user.id)
+            leading_bid = notify_bid_activity(item, previous_leader.bidder_id if previous_leader else None)
+
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        flash("We could not save your auto-bid right now. Please try again.", "error")
         return redirect(url_for("auctions.item_detail", item_id=item_id))
-
-    AutoBid.query.filter_by(item_id=item_id, bidder_id=current_user.id).delete()
-    db.session.add(AutoBid(item_id=item_id, bidder_id=current_user.id, upper_limit=upper_limit))
-    db.session.add(
-        Bid(
-            item_id=item_id,
-            bidder_id=current_user.id,
-            amount=min_next,
-            is_auto=True,
-        )
-    )
-    db.session.flush()
-
-    resolve_autobids(item)
-    leading_bid = notify_bid_activity(item, previous_leader.bidder_id if previous_leader else None)
-    db.session.commit()
 
     if leading_bid and leading_bid.bidder_id == current_user.id:
         flash(
@@ -506,13 +556,12 @@ def create():
     if not ensure_listing_seller():
         return redirect(url_for("search.browse"))
 
-    categories = Category.query.filter(Category.parent_id.isnot(None)).order_by(Category.name.asc()).all()
+    categories = get_leaf_categories()
     selected_category = request.args.get("category_id", type=int)
 
     if request.method == "POST":
         close_time_raw = request.form.get("close_time", "")
         image_file = request.files.get("image_file")
-        image_url_override = request.form.get("image_url_override", "").strip()
 
         try:
             close_time = datetime.strptime(close_time_raw, "%Y-%m-%dT%H:%M")
@@ -536,7 +585,7 @@ def create():
             flash("All listing fields are required.", "error")
             return render_create_form(categories, selected_category)
 
-        if close_time <= datetime.utcnow():
+        if close_time <= current_time():
             flash("Closing time must be in the future.", "error")
             return render_create_form(categories, selected_category)
 
@@ -544,22 +593,20 @@ def create():
             flash("Prices, bid increment, and size must be positive values.", "error")
             return render_create_form(categories, selected_category)
 
-        if not db.session.get(Category, category_id):
+        selected_category_record = db.session.get(Category, category_id)
+        if not selected_category_record:
             flash("Please choose a valid category.", "error")
             return render_create_form(categories, selected_category)
+        if selected_category_record.subcategories:
+            flash("Please choose a leaf sneaker category, not a parent branch.", "error")
+            return render_create_form(categories, selected_category)
 
-        stored_image_url = None
+        stored_image_data = None
         if image_file and image_file.filename:
-            stored_image_url, image_error = save_uploaded_item_image(image_file)
+            stored_image_data, image_error = save_uploaded_item_image(image_file)
             if image_error:
                 flash(image_error, "error")
                 return render_create_form(categories, selected_category)
-        elif image_url_override:
-            valid_image_url, image_error = validate_image_url(image_url_override)
-            if not valid_image_url:
-                flash(image_error, "error")
-                return render_create_form(categories, selected_category)
-            stored_image_url = image_url_override
 
         item = Item(
             title=title,
@@ -568,7 +615,7 @@ def create():
             colorway=colorway,
             style_code=style_code,
             us_size=us_size,
-            condition=request.form.get("condition", "New"),
+            condition=request.form.get("condition", "new").strip().lower(),
             box_included="box_included" in request.form,
             description=description,
             seller_id=current_user.id,
@@ -576,7 +623,7 @@ def create():
             start_price=start_price,
             reserve_price=reserve_price,
             bid_increment=bid_increment,
-            image_url_override=stored_image_url,
+            image_data=stored_image_data,
             close_time=close_time,
         )
         db.session.add(item)
@@ -595,10 +642,7 @@ def create():
             db.session.commit()
         except SQLAlchemyError:
             db.session.rollback()
-            flash(
-                "We could not save this auction. If you added an image URL, please use a direct image link instead of a search page.",
-                "error",
-            )
+            flash("We could not save this auction right now. Please try again.", "error")
             return render_create_form(categories, selected_category)
 
         flash("Auction listed successfully.", "success")
@@ -634,7 +678,7 @@ def alerts():
     if not ensure_end_user():
         return redirect(url_for("search.browse"))
 
-    categories = Category.query.filter(Category.parent_id.isnot(None)).order_by(Category.name.asc()).all()
+    categories = get_leaf_categories()
 
     if request.method == "POST":
         category_id = request.form.get("category_id", type=int)
@@ -642,6 +686,11 @@ def alerts():
 
         if not category_id:
             flash("Choose a category for your alert.", "error")
+            return redirect(url_for("auctions.alerts"))
+
+        category = db.session.get(Category, category_id)
+        if category is None or category.subcategories:
+            flash("Choose a leaf sneaker category for your alert.", "error")
             return redirect(url_for("auctions.alerts"))
 
         duplicate_alert = Alert.query.filter_by(

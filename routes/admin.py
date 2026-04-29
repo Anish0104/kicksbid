@@ -1,4 +1,3 @@
-from datetime import datetime
 from functools import wraps
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
@@ -8,6 +7,7 @@ from werkzeug.security import generate_password_hash
 
 from extensions import db
 from models import Alert, Answer, AutoBid, Bid, Item, Notification, Question, User
+from time_utils import current_time
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -112,10 +112,11 @@ def build_sales_report():
 @login_required
 @admin_required
 def dashboard():
+    now = current_time()
     total_users = User.query.count()
     unanswered_questions_count = Question.query.filter(~Question.answers.any()).count()
     total_bids = Bid.query.count()
-    active_auctions = Item.query.filter(Item.status == "open", Item.close_time > datetime.utcnow()).count()
+    active_auctions = Item.query.filter(Item.status == "open", Item.close_time > now).count()
     recent_bids = (
         Bid.query.options(selectinload(Bid.item), selectinload(Bid.bidder))
         .order_by(Bid.placed_at.desc())
@@ -245,10 +246,16 @@ def remove_bid():
         flash("Bid ID is required.", "error")
         return redirect(url_for("admin.rep"))
 
+    from routes.auctions import recalculate_item_status, restore_autobid_visibility
+
     bid = db.get_or_404(Bid, bid_id)
+    item = bid.item
     db.session.delete(bid)
+    db.session.flush()
+    restore_autobid_visibility(item)
+    recalculate_item_status(item)
     db.session.commit()
-    flash("Bid removed.", "success")
+    flash("Bid removed and auction state recomputed.", "success")
     return redirect(url_for("admin.rep"))
 
 

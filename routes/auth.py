@@ -4,6 +4,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from extensions import db
 from models import Alert, AutoBid, Bid, Item, Notification, User
+from time_utils import current_time
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -80,9 +81,14 @@ def logout():
 @auth_bp.route("/account")
 @login_required
 def account():
+    now = current_time()
     return render_template(
         "auth/account.html",
-        active_auctions_count=Item.query.filter_by(seller_id=current_user.id, status="open").count(),
+        active_auctions_count=Item.query.filter(
+            Item.seller_id == current_user.id,
+            Item.status == "open",
+            Item.close_time > now,
+        ).count(),
         total_listings_count=Item.query.filter_by(seller_id=current_user.id).count(),
         total_bids_count=Bid.query.filter_by(bidder_id=current_user.id).count(),
         autobid_count=AutoBid.query.filter_by(bidder_id=current_user.id).count(),

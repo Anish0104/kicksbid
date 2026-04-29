@@ -1,0 +1,2 @@
+CREATE DATABASE IF NOT EXISTS kicksbid;
+USE kicksbid;

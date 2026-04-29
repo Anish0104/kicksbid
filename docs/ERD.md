@@ -36,6 +36,7 @@ erDiagram
         float start_price
         float reserve_price
         float bid_increment
+        text image_url_override "nullable"
         datetime close_time
         varchar status
         datetime created_at
@@ -108,5 +109,7 @@ erDiagram
 
 - `USERS.role` is used to distinguish normal users, reps, and admins.
 - `ANSWERS.rep_id` references `USERS.id`; in practice that user is expected to have the `rep` role.
-- `CATEGORIES.parent_id` is optional, which makes the category tree self-referential.
+- `CATEGORIES.parent_id` is optional, which makes the category tree self-referential and supports the three-level sneaker taxonomy.
+- `ITEMS.image_url_override` stores an uploaded or manually supplied image source without changing the core sneaker attributes.
+- The live MySQL design also includes secondary indexes, validation triggers, and summary views documented in `schema.sql`.
 - This diagram is based on `schema.sql` and the ORM relationships in `models.py`.
