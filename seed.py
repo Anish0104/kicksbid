@@ -174,6 +174,44 @@ def bootstrap_admin(username, email, password):
 
 
 def load_sql_sample_data():
+    sample_users = [
+        {
+            "username": "jordan_fan",
+            "email": "jordan@example.com",
+            "password": "password",
+            "role": "user",
+            "created_at": current_time() - timedelta(days=30),
+        },
+        {
+            "username": "sneakerhead_nj",
+            "email": "sneaker@example.com",
+            "password": "password",
+            "role": "user",
+            "created_at": current_time() - timedelta(days=25),
+        },
+        {
+            "username": "kicks_collector",
+            "email": "collector@example.com",
+            "password": "password",
+            "role": "user",
+            "created_at": current_time() - timedelta(days=20),
+        },
+        {
+            "username": "sole_seller",
+            "email": "seller@example.com",
+            "password": "password",
+            "role": "user",
+            "created_at": current_time() - timedelta(days=15),
+        },
+        {
+            "username": "rep_mike",
+            "email": "rep@kicksbid.local",
+            "password": "password",
+            "role": "rep",
+            "created_at": current_time() - timedelta(days=60),
+        },
+    ]
+
     # Break your SQL script into individual executable statements
     queries = [
         """
