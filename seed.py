@@ -955,6 +955,120 @@ def load_sql_sample_data():
                 NOW() - INTERVAL 2 DAY
             ) AS src
             """,
+            """
+            INSERT IGNORE INTO items (
+              `title`, `brand`, `model_name`, `colorway`, `style_code`,
+              `us_size`, `condition`, `box_included`, `description`,
+              `seller_id`, `category_id`,
+              `start_price`, `reserve_price`, `bid_increment`,
+              `close_time`, `status`, `created_at`
+            )
+            SELECT
+              src.title,
+              src.brand,
+              src.model_name,
+              src.colorway,
+              src.style_code,
+              src.us_size,
+              src.`condition`,
+              src.box_included,
+              src.description,
+              (SELECT id FROM users WHERE username = 'dwiti'),
+              (SELECT id FROM tmp_cats WHERE full_path = src.category_path),
+              src.start_price,
+              src.reserve_price,
+              src.bid_increment,
+              src.close_time,
+              src.status,
+              src.created_at
+            FROM (
+              SELECT
+                'Nike Air Force 1 Low Triple White' AS title,
+                'Nike' AS brand,
+                'Air Force 1 Low' AS model_name,
+                'White / White' AS colorway,
+                'CW2288-111' AS style_code,
+                8.5 AS us_size,
+                'new' AS `condition`,
+                1 AS box_included,
+                'Clean all-white pair with crisp leather, untouched outsole, and classic everyday wearability.' AS description,
+                'Sneakers > Lifestyle > Casual > Court Classic' AS category_path,
+                90.00 AS start_price,
+                110.00 AS reserve_price,
+                5.00 AS bid_increment,
+                NOW() + INTERVAL 4 DAY AS close_time,
+                'open' AS status,
+                NOW() - INTERVAL 1 DAY AS created_at
+              UNION ALL SELECT
+                'Adidas Stan Smith White Green',
+                'Adidas',
+                'Stan Smith',
+                'White / Green',
+                'M20324',
+                9.0,
+                'like_new',
+                1,
+                'Minimal wear on the sole, bright leather upper, and the original box is still included.',
+                'Sneakers > Lifestyle > Casual > Slip-On',
+                75.00,
+                95.00,
+                5.00,
+                NOW() + INTERVAL 6 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Nike Blazer Mid 77 Vintage White',
+                'Nike',
+                'Blazer Mid 77 Vintage',
+                'White / Black / Sail',
+                'BQ6806-100',
+                10.0,
+                'new',
+                1,
+                'Fresh retro pair with clean suede overlays, sharp swoosh edges, and zero signs of wear.',
+                'Sneakers > Lifestyle > Retro > High Top',
+                95.00,
+                115.00,
+                5.00,
+                NOW() + INTERVAL 8 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Asics Gel-Nimbus 25 Black',
+                'ASICS',
+                'Gel-Nimbus 25',
+                'Black / Graphite Grey',
+                '1011B547-001',
+                9.5,
+                'new',
+                1,
+                'Plush daily trainer with fresh foam underfoot, breathable mesh, and a clean blacked-out finish.',
+                'Sneakers > Performance > Running > Daily Trainer',
+                140.00,
+                160.00,
+                5.00,
+                NOW() + INTERVAL 10 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Puma Suede Classic XXI Black',
+                'Puma',
+                'Suede Classic XXI',
+                'Black / White',
+                '374915-01',
+                8.0,
+                'good',
+                1,
+                'Classic low-profile suede pair with some gentle outsole wear but a clean upper and shape.',
+                'Sneakers > Lifestyle > Casual > Court Classic',
+                55.00,
+                75.00,
+                5.00,
+                NOW() + INTERVAL 12 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+            ) AS src
+            """,
         ]
 
         db.session.commit()
