@@ -534,6 +534,40 @@ def load_sql_sample_data():
         if retro_category is None or limited_category is None:
             raise ValueError("Missing sample-data alert categories.")
 
+        db.session.add(
+            Alert(
+                user_id=users_by_username["sneakerhead_nj"].id,
+                category_id=retro_category.id,
+                keywords="Jordan retro",
+            )
+        )
+        db.session.add(
+            Alert(
+                user_id=users_by_username["kicks_collector"].id,
+                category_id=limited_category.id,
+                keywords="Yeezy",
+            )
+        )
+
+        queries = [
+            "DROP TEMPORARY TABLE IF EXISTS tmp_cats",
+            """
+            CREATE TEMPORARY TABLE tmp_cats AS
+            SELECT c4.id, CONCAT(c1.name, ' > ', c2.name, ' > ', c3.name, ' > ', c4.name) AS full_path
+            FROM categories c1
+            JOIN categories c2 ON c2.parent_id = c1.id
+            JOIN categories c3 ON c3.parent_id = c2.id
+            JOIN categories c4 ON c4.parent_id = c3.id
+            """,
+            """
+            INSERT IGNORE INTO users (username, email, password_hash, role, is_active, created_at) VALUES
+              ('dwiti', 'dwiti@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw_new', 'user', 1, NOW() - INTERVAL 10 DAY),
+              ('sinchana', 'sinchana@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw_new', 'user', 1, NOW() - INTERVAL 9 DAY),
+              ('charvi', 'charvi@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw_new', 'user', 1, NOW() - INTERVAL 8 DAY),
+              ('anish', 'anish@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw_anish', 'user', 1, NOW() - INTERVAL 7 DAY)
+            """,
+        ]
+
         db.session.commit()
     except Exception:
         db.session.rollback()
