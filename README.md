@@ -11,7 +11,17 @@ KicksBid is a full-stack sneaker auction marketplace built with Flask and MySQL.
 - Rep and admin workflows for moderation, reporting, Q&A management, and buyer/seller analytics
 - MySQL views, triggers, functions, procedures, and an event scheduler for auction automation
 
-## Run locally
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Flask, Flask-Login, Flask-SQLAlchemy |
+| Database | MySQL |
+| ORM | SQLAlchemy |
+| Driver | PyMySQL |
+| Image handling | Pillow |
+
+## Quick Start
 
 ### 1. Create and activate a virtual environment
 
