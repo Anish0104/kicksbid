@@ -171,13 +171,28 @@ python3 scripts/generate_er_diagram.py
 - Repository contributor currently detected from git history: `Anish0104`
 - Add all teammate names here before final submission if they are not yet reflected in git history.
 
-## Project files
+## Project Structure
 
-- `app.py`: Flask app setup and route registration
-- `db_artifacts.py`: MySQL indexes, views, triggers, and stored procedures installer
-- `models.py`: SQLAlchemy models
-- `routes/`: auth, auctions, admin, and search routes
-- `templates/`: Jinja templates for the UI
-- `seed.py`: category/admin bootstrap script plus database artifact installer
-- `scripts/purge_demo_data.py`: removes the old demo/sample records from an existing database
-- `schema.sql`: canonical MySQL schema including DB-level features
+```
+kicksbid/
+├── app.py                        # Flask app setup, config, startup, route registration
+├── models.py                     # SQLAlchemy models and relationships
+├── db_artifacts.py               # MySQL views, triggers, procedures, event installer
+├── seed.py                       # Category bootstrap, admin setup, sample data
+├── schema.sql                    # Canonical SQL schema
+├── extensions.py                 # Shared Flask extensions (db, login manager)
+├── image_utils.py                # Image upload and processing helpers
+├── time_utils.py                 # Timezone and datetime utilities
+├── routes/
+│   ├── auth.py                   # Registration, login, account management
+│   ├── auctions.py               # Listings, bidding, auto-bids, notifications
+│   ├── search.py                 # Search, browse, alerts, Q&A
+│   └── admin.py                  # Admin dashboard, rep tools, moderation, reports
+├── templates/                    # Jinja2 HTML templates
+├── static/                       # Favicons, sneaker cutout images
+├── scripts/
+│   ├── generate_er_diagram.py    # ER diagram export generator
+│   ├── load_demo_data.py         # Sample data loader
+│   └── purge_demo_data.py        # Cleanup script for demo data
+└── docs/                         # ERD and database documentation
+```
