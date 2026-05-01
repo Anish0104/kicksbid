@@ -40,36 +40,32 @@ pip install -r requirements.txt
 
 Start MySQL locally, then create the database:
 
-```sql
-CREATE DATABASE kicksbid;
-```
-
-Run that SQL inside the MySQL client, not your normal terminal shell. For example:
-
 ```bash
 mysql -u root -p
 ```
 
-Then inside the MySQL prompt:
+Inside the MySQL prompt:
 
 ```sql
 CREATE DATABASE kicksbid;
 EXIT;
 ```
 
-This project reads the database URL from `DATABASE_URL` and falls back to this local MySQL default in `app.py`:
+### 4. Configure the database connection
 
-```python
+The app reads the database connection from `DATABASE_URL`. If not set, `app.py` falls back to:
+
+```
 mysql+pymysql://root:anish08032003@localhost/kicksbid
 ```
 
-If your local MySQL username or password is different, export `DATABASE_URL` before starting the app. Example:
+If your local MySQL credentials differ, export your own connection string:
 
 ```bash
 export DATABASE_URL="mysql+pymysql://root:yourpassword@localhost/kicksbid"
 ```
 
-### 4. Initialize required catalog data and DB artifacts
+### 5. Initialize schema, data, and database artifacts
 
 The app creates tables automatically on startup. To initialize the required three-level sneaker category tree, create the admin account, normalize legacy condition values, and install the MySQL indexes/views/functions/procedures/triggers/event, run:
 
@@ -99,7 +95,7 @@ If you previously loaded the old demo dataset, remove it with:
 python scripts/purge_demo_data.py
 ```
 
-### 5. Start the app
+### 6. Start the app
 
 ```bash
 python app.py
