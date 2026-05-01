@@ -350,6 +350,51 @@ def load_sql_sample_data():
         },
     ]
 
+    extra_sample_titles = [
+        "Air Jordan 1 Retro High OG Lost and Found",
+        "Nike Terminator High Georgetown",
+        "Air Jordan 1 Retro High OG University Blue",
+        "adidas Forum 84 High Royal Blue",
+        "Air Jordan 1 Low OG Mocha",
+        "Nike Air Force 1 Low Triple White",
+        "New Balance 550 White Green",
+        "Nike SB Dunk Low Pro Yuto Horigome",
+        "adidas Campus 00s Core Black",
+        "Puma Suede XL Black White",
+        "Nike Kobe 6 Protro Reverse Grinch",
+        "adidas AE 1 New Wave",
+        "Puma MB.03 Toxic",
+        "Air Jordan 38 Low Fundamental",
+        "JJJJound x New Balance 991 Made in UK Grey Olive",
+        "A Ma Maniere x Air Jordan 5 Dusk",
+        "Kith x ASICS Gel-Lyte III Super Orange",
+        "Nike Air Force 1 Low Linen Atmos",
+        "ASICS Gel-Lyte III Tokyo",
+        "Puma Palermo Tokyo",
+        "Nike Air Force 1 Low Triple White",
+        "Adidas Stan Smith White Green",
+        "Nike Blazer Mid 77 Vintage White",
+        "Asics Gel-Nimbus 25 Black",
+        "Puma Suede Classic XXI Black",
+        "Jordan 1 Mid Bred Toe",
+        "Nike React Infinity Run 4 Blue",
+        "Adidas Ultraboost 22 Triple Black",
+        "Nike Dunk High Pro SB Baroque Brown",
+        "Converse Chuck 70 High Top Parchment",
+        "Nike Air Jordan 3 Retro White Cement",
+        "New Balance 574 Grey Navy",
+        "Adidas Forum Low White Blue",
+        "Nike Air Max 270 React Black",
+        "Vans Old Skool Black White",
+        "Nike Air Force 1 Stussy Black",
+        "Nike LeBron 21 Akoya",
+        "Adidas Yeezy Boost 350 V2 Zebra",
+        "Air Jordan 1 Retro High OG Bred Patent",
+        "New Balance 990v6 Grey",
+        "Asics Gel-Kayano 14 Cream Black",
+    ]
+    extra_sample_usernames = ["dwiti", "sinchana", "charvi", "anish"]
+
     # Break your SQL script into individual executable statements
     queries = [
         """
