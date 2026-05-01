@@ -1430,6 +1430,31 @@ def load_sql_sample_data():
             """,
         ]
 
+        extra_bid_specs = [
+            ("Air Jordan 1 Retro High OG Lost and Found", "kicks_collector", 420.00, "22 HOUR"),
+            ("Air Jordan 1 Retro High OG Lost and Found", "sneakerhead_nj", 430.00, "12 HOUR"),
+            ("Air Jordan 1 Retro High OG University Blue", "jordan_fan", 295.00, "20 HOUR"),
+            ("Air Jordan 1 Retro High OG University Blue", "sole_seller", 305.00, "9 HOUR"),
+            ("Nike SB Dunk Low Pro Yuto Horigome", "jordan_fan", 300.00, "18 HOUR"),
+            ("Nike SB Dunk Low Pro Yuto Horigome", "kicks_collector", 310.00, "7 HOUR"),
+            ("Nike Kobe 6 Protro Reverse Grinch", "sneakerhead_nj", 460.00, "16 HOUR"),
+            ("Nike Kobe 6 Protro Reverse Grinch", "kicks_collector", 470.00, "6 HOUR"),
+            ("JJJJound x New Balance 991 Made in UK Grey Olive", "sole_seller", 400.00, "15 HOUR"),
+            ("JJJJound x New Balance 991 Made in UK Grey Olive", "jordan_fan", 410.00, "5 HOUR"),
+        ]
+
+        for item_title, bidder_username, amount, interval_literal in extra_bid_specs:
+            queries.extend(
+                [
+                    f"SET @seed_item_id = (SELECT id FROM items WHERE title = '{item_title}')",
+                    f"SET @seed_bidder_id = (SELECT id FROM users WHERE username = '{bidder_username}')",
+                    (
+                        "INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto) "
+                        f"VALUES (@seed_item_id, @seed_bidder_id, {amount:.2f}, NOW() - INTERVAL {interval_literal}, 0)"
+                    ),
+                ]
+            )
+
         db.session.commit()
     except Exception:
         db.session.rollback()
