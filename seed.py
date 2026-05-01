@@ -494,6 +494,46 @@ def load_sql_sample_data():
             )
         )
 
+        db.session.add(
+            Notification(
+                user_id=users_by_username["sneakerhead_nj"].id,
+                message="You have been outbid on Air Jordan 1 Retro High OG Chicago. Current bid: $370.00",
+                is_read=False,
+                created_at=current_time() - timedelta(hours=12),
+            )
+        )
+        db.session.add(
+            Notification(
+                user_id=users_by_username["jordan_fan"].id,
+                message='Your listing "Nike Dunk Low Panda" received a new bid of $125.00!',
+                is_read=False,
+                created_at=current_time() - timedelta(hours=10),
+            )
+        )
+
+        question = Question(
+            user_id=users_by_username["kicks_collector"].id,
+            item_id=items_by_title["Air Jordan 1 Retro High OG Chicago"].id,
+            body="Does the box have any damage? Also is the size US 10.5 or EU?",
+            created_at=current_time() - timedelta(hours=18),
+        )
+        db.session.add(question)
+        db.session.flush()
+
+        db.session.add(
+            Answer(
+                question_id=question.id,
+                rep_id=users_by_username["rep_mike"].id,
+                body="The box is in excellent condition with minimal shelf wear. US 10.5 = EU 44.5.",
+                created_at=current_time() - timedelta(hours=15),
+            )
+        )
+
+        retro_category = get_category_by_path(("Sneakers", "Lifestyle", "Retro", "High Top"))
+        limited_category = get_category_by_path(("Sneakers", "Collector", "Limited", "Regional Exclusive"))
+        if retro_category is None or limited_category is None:
+            raise ValueError("Missing sample-data alert categories.")
+
         db.session.commit()
     except Exception:
         db.session.rollback()
