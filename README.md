@@ -75,21 +75,21 @@ python seed.py
 
 If you previously ran an older one-level category version of the project, rerunning `seed.py` also migrates those legacy categories into the deeper hierarchy.
 
-By default, `seed.py` creates or updates this local admin account:
+Default admin credentials created by `seed.py`:
 
-```text
+```
 username: admin
-email: admin@kicksbid.local
+email:    admin@kicksbid.local
 password: admin12345
 ```
 
-You can override those credentials during setup:
+Override them at setup time if needed:
 
 ```bash
 python seed.py --admin-username youradmin --admin-email you@example.com --admin-password yourpassword
 ```
 
-If you previously loaded the old demo dataset, remove it with:
+If you previously loaded an older demo dataset, remove it first:
 
 ```bash
 python scripts/purge_demo_data.py
@@ -101,13 +101,13 @@ python scripts/purge_demo_data.py
 python app.py
 ```
 
-By default the server runs at:
+The development server listens on port `5001` by default:
 
-```text
+```
 http://127.0.0.1:5001
 ```
 
-You can override the host, port, or debug mode if needed:
+Override runtime settings as needed:
 
 ```bash
 HOST=127.0.0.1 PORT=5001 FLASK_DEBUG=1 python app.py
