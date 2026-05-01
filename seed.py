@@ -1183,6 +1183,120 @@ def load_sql_sample_data():
                 NOW() - INTERVAL 1 DAY
             ) AS src
             """,
+            """
+            INSERT IGNORE INTO items (
+              `title`, `brand`, `model_name`, `colorway`, `style_code`,
+              `us_size`, `condition`, `box_included`, `description`,
+              `seller_id`, `category_id`,
+              `start_price`, `reserve_price`, `bid_increment`,
+              `close_time`, `status`, `created_at`
+            )
+            SELECT
+              src.title,
+              src.brand,
+              src.model_name,
+              src.colorway,
+              src.style_code,
+              src.us_size,
+              src.`condition`,
+              src.box_included,
+              src.description,
+              (SELECT id FROM users WHERE username = 'charvi'),
+              (SELECT id FROM tmp_cats WHERE full_path = src.category_path),
+              src.start_price,
+              src.reserve_price,
+              src.bid_increment,
+              src.close_time,
+              src.status,
+              src.created_at
+            FROM (
+              SELECT
+                'Nike Air Jordan 3 Retro White Cement' AS title,
+                'Nike' AS brand,
+                'Air Jordan 3 Retro' AS model_name,
+                'White / Cement Grey / Black / Fire Red' AS colorway,
+                'DN3707-100' AS style_code,
+                11.0 AS us_size,
+                'new' AS `condition`,
+                1 AS box_included,
+                'Classic elephant print pair with crisp leather, bright midsoles, and fully deadstock condition.' AS description,
+                'Sneakers > Lifestyle > Retro > Low Top' AS category_path,
+                250.00 AS start_price,
+                270.00 AS reserve_price,
+                5.00 AS bid_increment,
+                NOW() + INTERVAL 6 DAY AS close_time,
+                'open' AS status,
+                NOW() - INTERVAL 1 DAY AS created_at
+              UNION ALL SELECT
+                'New Balance 574 Grey Navy',
+                'New Balance',
+                '574',
+                'Grey / Navy',
+                'ML574EVN',
+                9.5,
+                'like_new',
+                1,
+                'Suede and mesh remain clean, ENCAP feels supportive, and there is very little outsole wear.',
+                'Sneakers > Lifestyle > Casual > Court Classic',
+                70.00,
+                90.00,
+                5.00,
+                NOW() + INTERVAL 8 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Adidas Forum Low White Blue',
+                'Adidas',
+                'Forum Low',
+                'White / Royal Blue',
+                'FY7757',
+                8.5,
+                'new',
+                1,
+                'Fresh low-top hoops pair with clean ankle strap, premium leather feel, and sharp blue accents.',
+                'Sneakers > Performance > Basketball > Team',
+                100.00,
+                120.00,
+                5.00,
+                NOW() + INTERVAL 9 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Nike Air Max 270 React Black',
+                'Nike',
+                'Air Max 270 React',
+                'Black / Anthracite / White',
+                'CI3866-001',
+                10.0,
+                'good',
+                1,
+                'Comfort-focused lifestyle runner with visible Air unit, some wear on the sole, and a clean upper.',
+                'Sneakers > Lifestyle > Casual > Slip-On',
+                85.00,
+                105.00,
+                5.00,
+                NOW() + INTERVAL 10 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Vans Old Skool Black White',
+                'Vans',
+                'Old Skool',
+                'Black / White',
+                'VN000D3HY28',
+                9.0,
+                'new',
+                1,
+                'Iconic skate staple with fresh side stripe, clean foxing tape, and a brand-new waffle outsole.',
+                'Sneakers > Lifestyle > Skate > Cupsole',
+                65.00,
+                85.00,
+                5.00,
+                NOW() + INTERVAL 12 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+            ) AS src
+            """,
         ]
 
         db.session.commit()
