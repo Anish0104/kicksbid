@@ -133,17 +133,27 @@ Regenerate diagram assets locally:
 python3 scripts/generate_er_diagram.py
 ```
 
-## Implemented project features
+## Feature Highlights
 
-- End-user accounts: register, login, logout, and self-delete/deactivate
-- Auctions: create listings, reserve price, bid increment, manual bidding, automatic bidding, winner/no-winner resolution
-- Notifications: outbid alerts, auto-bid limit alerts, winner alerts, seller sale alerts, and saved item alerts
-- Search and browse: keyword, hierarchical leaf-category, condition, price, brand, size, seller, box-included, and status filters
-- History views: bid history per auction plus buyer/seller participation history
-- Similar items: historical similar auctions from the previous month on each item page
-- Q&A: item questions, rep answers, public Q&A browse/search page
-- Admin tools: create rep accounts, promote users to reps, sales reporting, buyer rankings, seller/category/item earnings
-- Rep tools: answer questions, edit users, edit auctions, remove bids, and remove auctions
+### Auction and bidding
+
+- Create listings with category assignment, reserve prices, and sneaker metadata
+- Place manual bids or configure a maximum auto-bid that competes incrementally
+- Auctions resolve automatically into sold, closed, or no-winner outcomes via the event scheduler
+- View item detail pages with full bid history and historical pricing context
+
+### Discovery and alerts
+
+- Browse by keyword, category, seller, brand, size, condition, price, and auction status
+- Save alerts for future listings in tracked categories
+- Ask public questions on listings and receive rep answers
+- Receive in-app notifications for bidding events and listing activity
+
+### Staff and reporting
+
+- Promote users to rep roles and manage staff permissions from the admin dashboard
+- Moderate auctions, users, bids, and Q&A entries
+- Review sales reports, buyer rankings, and per-seller, per-category, and per-item earnings
 
 ## Database systems features
 
