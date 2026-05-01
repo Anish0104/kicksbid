@@ -1069,6 +1069,120 @@ def load_sql_sample_data():
                 NOW() - INTERVAL 1 DAY
             ) AS src
             """,
+            """
+            INSERT IGNORE INTO items (
+              `title`, `brand`, `model_name`, `colorway`, `style_code`,
+              `us_size`, `condition`, `box_included`, `description`,
+              `seller_id`, `category_id`,
+              `start_price`, `reserve_price`, `bid_increment`,
+              `close_time`, `status`, `created_at`
+            )
+            SELECT
+              src.title,
+              src.brand,
+              src.model_name,
+              src.colorway,
+              src.style_code,
+              src.us_size,
+              src.`condition`,
+              src.box_included,
+              src.description,
+              (SELECT id FROM users WHERE username = 'sinchana'),
+              (SELECT id FROM tmp_cats WHERE full_path = src.category_path),
+              src.start_price,
+              src.reserve_price,
+              src.bid_increment,
+              src.close_time,
+              src.status,
+              src.created_at
+            FROM (
+              SELECT
+                'Jordan 1 Mid Bred Toe' AS title,
+                'Jordan' AS brand,
+                'Air Jordan 1 Mid' AS model_name,
+                'Black / Red / White' AS colorway,
+                '554724-079' AS style_code,
+                7.5 AS us_size,
+                'like_new' AS `condition`,
+                1 AS box_included,
+                'Color blocking is sharp, leather feels great, and the pair has only seen a few careful wears.' AS description,
+                'Sneakers > Lifestyle > Retro > High Top' AS category_path,
+                130.00 AS start_price,
+                150.00 AS reserve_price,
+                5.00 AS bid_increment,
+                NOW() + INTERVAL 5 DAY AS close_time,
+                'open' AS status,
+                NOW() - INTERVAL 1 DAY AS created_at
+              UNION ALL SELECT
+                'Nike React Infinity Run 4 Blue',
+                'Nike',
+                'React Infinity Run 4',
+                'Blue / White / Black',
+                'DR2665-401',
+                8.0,
+                'new',
+                1,
+                'Performance runner with springy cushioning, stable platform, and a fresh blue finish.',
+                'Sneakers > Performance > Running > Race Day',
+                120.00,
+                140.00,
+                5.00,
+                NOW() + INTERVAL 7 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Adidas Ultraboost 22 Triple Black',
+                'Adidas',
+                'Ultraboost 22',
+                'Core Black / Core Black',
+                'GX3062',
+                9.0,
+                'like_new',
+                1,
+                'Boost feels lively, Primeknit is clean, and the pair has very light wear overall.',
+                'Sneakers > Performance > Running > Daily Trainer',
+                150.00,
+                170.00,
+                5.00,
+                NOW() + INTERVAL 9 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Nike Dunk High Pro SB Baroque Brown',
+                'Nike',
+                'Dunk High Pro SB',
+                'Baroque Brown / Black',
+                '305050-202',
+                10.5,
+                'good',
+                1,
+                'Older SB pair with solid structure, rich brown panels, and honest signs of wear for the age.',
+                'Sneakers > Lifestyle > Skate > Dunk-Inspired',
+                180.00,
+                200.00,
+                5.00,
+                NOW() + INTERVAL 11 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Converse Chuck 70 High Top Parchment',
+                'Converse',
+                'Chuck 70 High',
+                'Parchment / Egret / Black',
+                '162053C',
+                7.0,
+                'new',
+                1,
+                'Classic canvas high-top with clean foxing, fresh insole, and timeless vintage-inspired detailing.',
+                'Sneakers > Lifestyle > Retro > High Top',
+                80.00,
+                100.00,
+                5.00,
+                NOW() + INTERVAL 12 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+            ) AS src
+            """,
         ]
 
         db.session.commit()
