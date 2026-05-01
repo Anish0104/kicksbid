@@ -395,152 +395,109 @@ def load_sql_sample_data():
     ]
     extra_sample_usernames = ["dwiti", "sinchana", "charvi", "anish"]
 
-    # Break your SQL script into individual executable statements
-    queries = [
-        """
-        INSERT IGNORE INTO users (username, email, password_hash, role, is_active, created_at) VALUES
-        ('jordan_fan', 'jordan@example.com', 'scrypt:32768:8:1$abc$hashedpw1', 'user', 1, NOW() - INTERVAL 30 DAY),
-        ('sneakerhead_nj', 'sneaker@example.com', 'scrypt:32768:8:1$abc$hashedpw2', 'user', 1, NOW() - INTERVAL 25 DAY),
-        ('kicks_collector', 'collector@example.com', 'scrypt:32768:8:1$abc$hashedpw3', 'user', 1, NOW() - INTERVAL 20 DAY),
-        ('sole_seller', 'seller@example.com', 'scrypt:32768:8:1$abc$hashedpw4', 'user', 1, NOW() - INTERVAL 15 DAY),
-        ('rep_mike', 'rep@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw5', 'rep', 1, NOW() - INTERVAL 60 DAY)
-        """,
-        "DROP TEMPORARY TABLE IF EXISTS tmp_cats",
-        """
-        CREATE TEMPORARY TABLE tmp_cats AS
-        SELECT c4.id, CONCAT(c1.name, ' > ', c2.name, ' > ', c3.name, ' > ', c4.name) AS full_path
-        FROM categories c1
-        JOIN categories c2 ON c2.parent_id = c1.id
-        JOIN categories c3 ON c3.parent_id = c2.id
-        JOIN categories c4 ON c4.parent_id = c3.id
-        """,
-        """
-        INSERT IGNORE INTO items (
-          title, brand, model_name, colorway, style_code,
-          us_size, condition, box_included, description,
-          seller_id, category_id,
-          start_price, reserve_price, bid_increment,
-          close_time, status, created_at
-        )
-        SELECT
-          'Air Jordan 1 Retro High OG Chicago',
-          'Nike', 'Air Jordan 1 Retro High OG', 'White/Black-Varsity Red', '555088-101',
-          10.5, 'new', 1,
-          'Deadstock AJ1 Chicago colorway. Never worn, tried on once indoors. All tags attached. OG box included.',
-          (SELECT id FROM users WHERE username = 'sole_seller'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Retro > High Top'),
-          350.00, 400.00, 10.00,
-          NOW() + INTERVAL 5 DAY, 'open', NOW() - INTERVAL 2 DAY
-        UNION ALL SELECT
-          'Nike Dunk Low Panda',
-          'Nike', 'Dunk Low', 'White/Black', 'DD1391-100',
-          9.0, 'like_new', 1,
-          'Worn twice. No creasing. Box included. Classic Panda colorway that goes with everything.',
-          (SELECT id FROM users WHERE username = 'jordan_fan'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Skate > Dunk-Inspired'),
-          120.00, 140.00, 5.00,
-          NOW() + INTERVAL 3 DAY, 'open', NOW() - INTERVAL 1 DAY
-        UNION ALL SELECT
-          'Adidas Yeezy Boost 350 V2 Zebra',
-          'Adidas', 'Yeezy Boost 350 V2', 'White/Core Black/Red', 'CP9654',
-          11.0, 'new', 1,
-          'Brand new Zebra Yeezy. Purchased from Adidas confirmed app. 100% authentic with receipt.',
-          (SELECT id FROM users WHERE username = 'sneakerhead_nj'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Collector > Limited > Regional Exclusive'),
-          280.00, 320.00, 10.00,
-          NOW() + INTERVAL 7 DAY, 'open', NOW() - INTERVAL 3 DAY
-        UNION ALL SELECT
-          'Nike Air Max 90 Infrared',
-          'Nike', 'Air Max 90', 'White/Black-Infrared', 'CT1685-100',
-          10.0, 'good', 0,
-          'OG AM90 Infrared. Light wear on outsole. Box not included. Cleaned and ready to ship.',
-          (SELECT id FROM users WHERE username = 'kicks_collector'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Casual > Court Classic'),
-          85.00, 100.00, 5.00,
-          NOW() + INTERVAL 4 DAY, 'open', NOW() - INTERVAL 4 DAY
-        UNION ALL SELECT
-          'Jordan 4 Retro Military Black',
-          'Nike', 'Air Jordan 4 Retro', 'Black/Dark Charcoal-Light Graphite', 'DH7138-006',
-          9.5, 'new', 1,
-          'Military Black 4s. Copped from SNKRS. Legit check available. Ships double boxed.',
-          (SELECT id FROM users WHERE username = 'sole_seller'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Retro > Low Top'),
-          300.00, 350.00, 10.00,
-          NOW() + INTERVAL 6 DAY, 'open', NOW() - INTERVAL 1 DAY
-        UNION ALL SELECT
-          'New Balance 990v5 Made in USA Grey',
-          'New Balance', '990v5', 'Grey/White', 'M990GL5',
-          11.5, 'like_new', 1,
-          'MiUSA 990v5 in classic grey. Worn 3 times. Perfect condition. Original box and extra laces.',
-          (SELECT id FROM users WHERE username = 'sneakerhead_nj'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Performance > Running > Daily Trainer'),
-          155.00, 180.00, 5.00,
-          NOW() + INTERVAL 8 DAY, 'open', NOW() - INTERVAL 2 DAY
-        """,
-        """
-        INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto)
-        SELECT i.id, u.id, 360.00, NOW() - INTERVAL 1 DAY, 0
-        FROM items i, users u
-        WHERE i.title = 'Air Jordan 1 Retro High OG Chicago' AND u.username = 'sneakerhead_nj'
-        """,
-        """
-        INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto)
-        SELECT i.id, u.id, 370.00, NOW() - INTERVAL 12 HOUR, 0
-        FROM items i, users u
-        WHERE i.title = 'Air Jordan 1 Retro High OG Chicago' AND u.username = 'kicks_collector'
-        """,
-        """
-        INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto)
-        SELECT i.id, u.id, 125.00, NOW() - INTERVAL 10 HOUR, 0
-        FROM items i, users u
-        WHERE i.title = 'Nike Dunk Low Panda' AND u.username = 'kicks_collector'
-        """,
-        """
-        INSERT INTO autobids (item_id, bidder_id, upper_limit)
-        SELECT i.id, u.id, 400.00
-        FROM items i, users u
-        WHERE i.title = 'Adidas Yeezy Boost 350 V2 Zebra' AND u.username = 'jordan_fan'
-        """,
-        """
-        INSERT INTO notifications (user_id, message, is_read, created_at)
-        SELECT u.id, 'You have been outbid on Air Jordan 1 Retro High OG Chicago. Current bid: $370.00', 0, NOW() - INTERVAL 12 HOUR
-        FROM users u WHERE u.username = 'sneakerhead_nj'
-        """,
-        """
-        INSERT INTO notifications (user_id, message, is_read, created_at)
-        SELECT u.id, 'Your listing "Nike Dunk Low Panda" received a new bid of $125.00!', 0, NOW() - INTERVAL 10 HOUR
-        FROM users u WHERE u.username = 'jordan_fan'
-        """,
-        """
-        INSERT INTO questions (user_id, item_id, body, created_at)
-        SELECT u.id, i.id, 'Does the box have any damage? Also is the size US 10.5 or EU?', NOW() - INTERVAL 18 HOUR
-        FROM users u, items i
-        WHERE u.username = 'kicks_collector' AND i.title = 'Air Jordan 1 Retro High OG Chicago'
-        """,
-        """
-        INSERT INTO answers (question_id, rep_id, body, created_at)
-        SELECT q.id, u.id, 'The box is in excellent condition with minimal shelf wear. US 10.5 = EU 44.5.', NOW() - INTERVAL 15 HOUR
-        FROM questions q, users u
-        WHERE q.body LIKE '%Does the box have any damage%' AND u.username = 'rep_mike'
-        """,
-        """
-        INSERT INTO alerts (user_id, category_id, keywords)
-        SELECT u.id, c.id, 'Jordan retro'
-        FROM users u, tmp_cats c
-        WHERE u.username = 'sneakerhead_nj' AND c.full_path = 'Sneakers > Lifestyle > Retro > High Top'
-        """,
-        """
-        INSERT INTO alerts (user_id, category_id, keywords)
-        SELECT u.id, c.id, 'Yeezy'
-        FROM users u, tmp_cats c
-        WHERE u.username = 'kicks_collector' AND c.full_path = 'Sneakers > Collector > Limited > Regional Exclusive'
-        """,
-        "DROP TEMPORARY TABLE IF EXISTS tmp_cats"
-    ]
+    try:
+        sample_usernames = [spec["username"] for spec in sample_users] + extra_sample_usernames
+        sample_titles = [spec["title"] for spec in sample_items] + extra_sample_titles
 
-    with db.engine.begin() as conn:
-        for q in queries:
-            conn.execute(text(q))
+        existing_users = User.query.filter(User.username.in_(sample_usernames)).all()
+        existing_user_ids = [user.id for user in existing_users]
+        existing_items = Item.query.filter(Item.title.in_(sample_titles)).all()
+        existing_item_ids = [item.id for item in existing_items]
+
+        if existing_user_ids or existing_item_ids:
+            existing_questions = Question.query.filter(
+                (Question.user_id.in_(existing_user_ids or [-1])) | (Question.item_id.in_(existing_item_ids or [-1]))
+            ).all()
+            existing_question_ids = [question.id for question in existing_questions]
+
+            Answer.query.filter(
+                (Answer.rep_id.in_(existing_user_ids or [-1])) | (Answer.question_id.in_(existing_question_ids or [-1]))
+            ).delete(synchronize_session=False)
+            Notification.query.filter(Notification.user_id.in_(existing_user_ids or [-1])).delete(
+                synchronize_session=False
+            )
+            Alert.query.filter(Alert.user_id.in_(existing_user_ids or [-1])).delete(synchronize_session=False)
+            AutoBid.query.filter(
+                (AutoBid.bidder_id.in_(existing_user_ids or [-1]))
+                | (AutoBid.item_id.in_(existing_item_ids or [-1]))
+            ).delete(synchronize_session=False)
+            Bid.query.filter(
+                (Bid.bidder_id.in_(existing_user_ids or [-1])) | (Bid.item_id.in_(existing_item_ids or [-1]))
+            ).delete(synchronize_session=False)
+            Question.query.filter(Question.id.in_(existing_question_ids or [-1])).delete(synchronize_session=False)
+            Item.query.filter(Item.id.in_(existing_item_ids or [-1])).delete(synchronize_session=False)
+            User.query.filter(User.id.in_(existing_user_ids or [-1])).delete(synchronize_session=False)
+            db.session.flush()
+
+        users_by_username = {}
+        for spec in sample_users:
+            user = User(
+                username=spec["username"],
+                email=spec["email"],
+                password_hash=generate_password_hash(spec["password"]),
+                role=spec["role"],
+                is_active=True,
+                created_at=spec["created_at"],
+            )
+            db.session.add(user)
+            users_by_username[spec["username"]] = user
+
+        db.session.flush()
+
+        items_by_title = {}
+        for spec in sample_items:
+            category = get_category_by_path(spec["category_path"])
+            if category is None:
+                raise ValueError(f"Missing sample-data category path: {' > '.join(spec['category_path'])}")
+
+            item = Item(
+                title=spec["title"],
+                brand=spec["brand"],
+                model_name=spec["model_name"],
+                colorway=spec["colorway"],
+                style_code=spec["style_code"],
+                us_size=spec["us_size"],
+                condition=spec["condition"],
+                box_included=spec["box_included"],
+                description=spec["description"],
+                seller_id=users_by_username[spec["seller"]].id,
+                category_id=category.id,
+                start_price=spec["start_price"],
+                reserve_price=spec["reserve_price"],
+                bid_increment=spec["bid_increment"],
+                close_time=spec["close_time"],
+                status=spec["status"],
+                created_at=spec["created_at"],
+            )
+            db.session.add(item)
+            db.session.flush()
+            items_by_title[spec["title"]] = item
+
+        for spec in sample_bids:
+            db.session.add(
+                Bid(
+                    item_id=items_by_title[spec["item_title"]].id,
+                    bidder_id=users_by_username[spec["bidder"]].id,
+                    amount=spec["amount"],
+                    placed_at=spec["placed_at"],
+                    is_auto=False,
+                )
+            )
+
+        db.session.flush()
+
+        db.session.add(
+            AutoBid(
+                item_id=items_by_title["Adidas Yeezy Boost 350 V2 Zebra"].id,
+                bidder_id=users_by_username["jordan_fan"].id,
+                upper_limit=400.0,
+            )
+        )
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
 
 def parse_args():
