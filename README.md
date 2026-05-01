@@ -155,18 +155,16 @@ python3 scripts/generate_er_diagram.py
 - Moderate auctions, users, bids, and Q&A entries
 - Review sales reports, buyer rankings, and per-seller, per-category, and per-item earnings
 
-## Database systems features
+## Database Systems Features
 
-- Hierarchical category design with self-referential foreign keys
-- Integrity constraints, including `ck_items_condition`, explicit `ON DELETE RESTRICT ON UPDATE CASCADE` foreign-key actions, and secondary indexes declared in both the ORM and canonical SQL schema
-- Full MySQL schema export in `schema.sql` including views, functions, triggers, stored procedures, and the event scheduler
-- Summary views for active auctions, completed sales, user participation, and rep moderation, including `active_auction_summary` with `WITH CHECK OPTION` and `rep_moderation_queue`
-- `fn_get_current_bid(item_id)` as a reusable database function for the effective bid value
-- Trigger-based validation for bids and auto-bids
-- Stored procedures for transactional auction status recalculation, expired-auction closure, and DB-backed auto-bid processing via `sp_process_autobids`
-- `evt_close_expired_auctions` runs every minute in MySQL to close expired auctions automatically when the event scheduler is enabled
-- `seed.py` remains the single DB setup entry point and installs or repairs the MySQL check constraints, foreign keys, views, functions, procedures, triggers, and event artifacts
-- Transactional bid handling in the Flask application for manual bids, auto-bids, and moderated bid removal
+- Self-referential category hierarchy supporting a three-level sneaker taxonomy (brand → line → model)
+- Explicit foreign-key behavior with `ON DELETE RESTRICT` and `ON UPDATE CASCADE`
+- Check constraint `ck_items_condition` plus bid and auto-bid trigger validation
+- Summary views: `active_auction_summary`, `closed_auction_sales`, `user_auction_participation`, `rep_moderation_queue`
+- Reusable scalar function `fn_get_current_bid(item_id)` for current-bid calculation across the app
+- Stored procedures for auction status recalculation, expired-auction closure, and auto-bid processing via `sp_process_autobids`
+- Event scheduler job `evt_close_expired_auctions` for automated auction lifecycle management
+- Seed-driven installation and repair of all DB artifacts through `db_artifacts.py`
 
 ## Team
 
