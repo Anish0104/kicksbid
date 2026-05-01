@@ -166,10 +166,30 @@ python3 scripts/generate_er_diagram.py
 - Event scheduler job `evt_close_expired_auctions` for automated auction lifecycle management
 - Seed-driven installation and repair of all DB artifacts through `db_artifacts.py`
 
-## Team
+## Team Contributions
 
-- Repository contributor currently detected from git history: `Anish0104`
-- Add all teammate names here before final submission if they are not yet reflected in git history.
+### Anish Shirodkar
+- Designed and implemented the core auction engine — auction creation, manual bidding, auto-bidding logic, bid increment enforcement, and auction resolution workflows (`routes/auctions.py`)
+- Authored the MySQL schema (`schema.sql`) and all database-layer artifacts: triggers for bid/auto-bid validation, stored procedures for auto-bid processing and auction lifecycle management, summary views, and the `fn_get_current_bid` scalar function (`db_artifacts.py`)
+- Built the app infrastructure: Flask application factory, blueprint registration, startup initialization, and environment-based configuration (`app.py`, `extensions.py`)
+- Produced the ER diagram, database documentation, and canonical schema exports (`docs/`)
+
+### Dwiti Choksi
+- Built the admin dashboard and moderation system — user management, auction moderation, bid removal, and Q&A oversight (`routes/admin.py`)
+- Implemented the rep role system: rep promotion, rep moderation queue, and rep-specific workflows
+- Developed the reporting layer: sales summaries, buyer rankings, and per-seller, per-category, and per-item earnings views (`templates/admin/`)
+
+### Charvi Shastri
+- Defined all SQLAlchemy models and table relationships, including the self-referential category hierarchy and all association logic (`models.py`)
+- Built the search and browse system — keyword search, multi-filter browsing by brand, size, condition, price, and status, and the activity feed (`routes/search.py`)
+- Developed Q&A functionality: public question submission, rep answer flow, and the questions listing page (`templates/search/`)
+- Implemented image upload handling and processing utilities (`image_utils.py`)
+
+### Sinchana Arun
+- Implemented user authentication — registration, login/logout, session management, and account settings (`routes/auth.py`, `templates/auth/`)
+- Built the notifications and alerts system: outbid notifications, alert creation for tracked categories, and the alerts management page (`templates/auctions/`)
+- Wrote the seed script and demo data pipeline: category tree bootstrap, admin account setup, and sample inventory/bid loading (`seed.py`, `scripts/`)
+- Contributed timezone-aware datetime utilities used across the auction and notification flows (`time_utils.py`)
 
 ## Project Structure
 
