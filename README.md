@@ -113,25 +113,25 @@ You can override the host, port, or debug mode if needed:
 HOST=127.0.0.1 PORT=5001 FLASK_DEBUG=1 python app.py
 ```
 
-## Database ER diagram
+## Database Diagram
 
-The generated diagram assets live at:
+![KicksBid ER Diagram](ERRDiagram.png)
 
-- `docs/kicksbid-er-diagram.png`
-- `docs/kicksbid-er-diagram.pdf`
-- `docs/kicksbid-er-diagram.mmd`
-- `docs/ERD.md`
-- `docs/DB_FEATURES.md`
+## Database Documentation
 
-For the cleanest source-of-truth version on GitHub, open `docs/ERD.md`.
+| File | Contents |
+|---|---|
+| `docs/ERD.md` | Canonical Mermaid source for the schema diagram |
+| `docs/kicksbid-er-diagram.png` | Generated diagram export |
+| `docs/kicksbid-er-diagram.mmd` | Mermaid diagram source |
+| `docs/DB_FEATURES.md` | Full reference for views, triggers, procedures, and DB-layer features |
+| `schema.sql` | Canonical MySQL schema |
 
-To regenerate it locally:
+Regenerate diagram assets locally:
 
 ```bash
 python3 scripts/generate_er_diagram.py
 ```
-
-![KicksBid ER Diagram](docs/kicksbid-er-diagram.png)
 
 ## Implemented project features
 
