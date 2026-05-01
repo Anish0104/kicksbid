@@ -329,6 +329,27 @@ def load_sql_sample_data():
         },
     ]
 
+    sample_bids = [
+        {
+            "item_title": "Air Jordan 1 Retro High OG Chicago",
+            "bidder": "sneakerhead_nj",
+            "amount": 360.0,
+            "placed_at": current_time() - timedelta(days=1),
+        },
+        {
+            "item_title": "Air Jordan 1 Retro High OG Chicago",
+            "bidder": "kicks_collector",
+            "amount": 370.0,
+            "placed_at": current_time() - timedelta(hours=12),
+        },
+        {
+            "item_title": "Nike Dunk Low Panda",
+            "bidder": "kicks_collector",
+            "amount": 125.0,
+            "placed_at": current_time() - timedelta(hours=10),
+        },
+    ]
+
     # Break your SQL script into individual executable statements
     queries = [
         """
