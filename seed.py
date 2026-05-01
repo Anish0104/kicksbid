@@ -1,14 +1,16 @@
 import argparse
 import os
+from datetime import timedelta
 
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash
 
 from app import app
 from db_artifacts import install_database_artifacts
-from sqlalchemy import text
 
 from extensions import db
-from models import Alert, Category, Item, User
+from models import Alert, Answer, AutoBid, Bid, Category, Item, Notification, Question, User
+from time_utils import current_time
 
 
 CATEGORY_TREE = {
