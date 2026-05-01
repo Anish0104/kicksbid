@@ -1,14 +1,16 @@
 import argparse
 import os
+from datetime import timedelta
 
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash
 
 from app import app
 from db_artifacts import install_database_artifacts
-from sqlalchemy import text
 
 from extensions import db
-from models import Alert, Category, Item, User
+from models import Alert, Answer, AutoBid, Bid, Category, Item, Notification, Question, User
+from time_utils import current_time
 
 
 CATEGORY_TREE = {
@@ -172,152 +174,1331 @@ def bootstrap_admin(username, email, password):
 
 
 def load_sql_sample_data():
-    # Break your SQL script into individual executable statements
-    queries = [
-        """
-        INSERT IGNORE INTO users (username, email, password_hash, role, is_active, created_at) VALUES
-        ('jordan_fan', 'jordan@example.com', 'scrypt:32768:8:1$abc$hashedpw1', 'user', 1, NOW() - INTERVAL 30 DAY),
-        ('sneakerhead_nj', 'sneaker@example.com', 'scrypt:32768:8:1$abc$hashedpw2', 'user', 1, NOW() - INTERVAL 25 DAY),
-        ('kicks_collector', 'collector@example.com', 'scrypt:32768:8:1$abc$hashedpw3', 'user', 1, NOW() - INTERVAL 20 DAY),
-        ('sole_seller', 'seller@example.com', 'scrypt:32768:8:1$abc$hashedpw4', 'user', 1, NOW() - INTERVAL 15 DAY),
-        ('rep_mike', 'rep@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw5', 'rep', 1, NOW() - INTERVAL 60 DAY)
-        """,
-        "DROP TEMPORARY TABLE IF EXISTS tmp_cats",
-        """
-        CREATE TEMPORARY TABLE tmp_cats AS
-        SELECT c4.id, CONCAT(c1.name, ' > ', c2.name, ' > ', c3.name, ' > ', c4.name) AS full_path
-        FROM categories c1
-        JOIN categories c2 ON c2.parent_id = c1.id
-        JOIN categories c3 ON c3.parent_id = c2.id
-        JOIN categories c4 ON c4.parent_id = c3.id
-        """,
-        """
-        INSERT IGNORE INTO items (
-          title, brand, model_name, colorway, style_code,
-          us_size, condition, box_included, description,
-          seller_id, category_id,
-          start_price, reserve_price, bid_increment,
-          close_time, status, created_at
-        )
-        SELECT
-          'Air Jordan 1 Retro High OG Chicago',
-          'Nike', 'Air Jordan 1 Retro High OG', 'White/Black-Varsity Red', '555088-101',
-          10.5, 'new', 1,
-          'Deadstock AJ1 Chicago colorway. Never worn, tried on once indoors. All tags attached. OG box included.',
-          (SELECT id FROM users WHERE username = 'sole_seller'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Retro > High Top'),
-          350.00, 400.00, 10.00,
-          NOW() + INTERVAL 5 DAY, 'open', NOW() - INTERVAL 2 DAY
-        UNION ALL SELECT
-          'Nike Dunk Low Panda',
-          'Nike', 'Dunk Low', 'White/Black', 'DD1391-100',
-          9.0, 'like_new', 1,
-          'Worn twice. No creasing. Box included. Classic Panda colorway that goes with everything.',
-          (SELECT id FROM users WHERE username = 'jordan_fan'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Skate > Dunk-Inspired'),
-          120.00, 140.00, 5.00,
-          NOW() + INTERVAL 3 DAY, 'open', NOW() - INTERVAL 1 DAY
-        UNION ALL SELECT
-          'Adidas Yeezy Boost 350 V2 Zebra',
-          'Adidas', 'Yeezy Boost 350 V2', 'White/Core Black/Red', 'CP9654',
-          11.0, 'new', 1,
-          'Brand new Zebra Yeezy. Purchased from Adidas confirmed app. 100% authentic with receipt.',
-          (SELECT id FROM users WHERE username = 'sneakerhead_nj'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Collector > Limited > Regional Exclusive'),
-          280.00, 320.00, 10.00,
-          NOW() + INTERVAL 7 DAY, 'open', NOW() - INTERVAL 3 DAY
-        UNION ALL SELECT
-          'Nike Air Max 90 Infrared',
-          'Nike', 'Air Max 90', 'White/Black-Infrared', 'CT1685-100',
-          10.0, 'good', 0,
-          'OG AM90 Infrared. Light wear on outsole. Box not included. Cleaned and ready to ship.',
-          (SELECT id FROM users WHERE username = 'kicks_collector'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Casual > Court Classic'),
-          85.00, 100.00, 5.00,
-          NOW() + INTERVAL 4 DAY, 'open', NOW() - INTERVAL 4 DAY
-        UNION ALL SELECT
-          'Jordan 4 Retro Military Black',
-          'Nike', 'Air Jordan 4 Retro', 'Black/Dark Charcoal-Light Graphite', 'DH7138-006',
-          9.5, 'new', 1,
-          'Military Black 4s. Copped from SNKRS. Legit check available. Ships double boxed.',
-          (SELECT id FROM users WHERE username = 'sole_seller'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Lifestyle > Retro > Low Top'),
-          300.00, 350.00, 10.00,
-          NOW() + INTERVAL 6 DAY, 'open', NOW() - INTERVAL 1 DAY
-        UNION ALL SELECT
-          'New Balance 990v5 Made in USA Grey',
-          'New Balance', '990v5', 'Grey/White', 'M990GL5',
-          11.5, 'like_new', 1,
-          'MiUSA 990v5 in classic grey. Worn 3 times. Perfect condition. Original box and extra laces.',
-          (SELECT id FROM users WHERE username = 'sneakerhead_nj'),
-          (SELECT id FROM tmp_cats WHERE full_path = 'Sneakers > Performance > Running > Daily Trainer'),
-          155.00, 180.00, 5.00,
-          NOW() + INTERVAL 8 DAY, 'open', NOW() - INTERVAL 2 DAY
-        """,
-        """
-        INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto)
-        SELECT i.id, u.id, 360.00, NOW() - INTERVAL 1 DAY, 0
-        FROM items i, users u
-        WHERE i.title = 'Air Jordan 1 Retro High OG Chicago' AND u.username = 'sneakerhead_nj'
-        """,
-        """
-        INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto)
-        SELECT i.id, u.id, 370.00, NOW() - INTERVAL 12 HOUR, 0
-        FROM items i, users u
-        WHERE i.title = 'Air Jordan 1 Retro High OG Chicago' AND u.username = 'kicks_collector'
-        """,
-        """
-        INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto)
-        SELECT i.id, u.id, 125.00, NOW() - INTERVAL 10 HOUR, 0
-        FROM items i, users u
-        WHERE i.title = 'Nike Dunk Low Panda' AND u.username = 'kicks_collector'
-        """,
-        """
-        INSERT INTO autobids (item_id, bidder_id, upper_limit)
-        SELECT i.id, u.id, 400.00
-        FROM items i, users u
-        WHERE i.title = 'Adidas Yeezy Boost 350 V2 Zebra' AND u.username = 'jordan_fan'
-        """,
-        """
-        INSERT INTO notifications (user_id, message, is_read, created_at)
-        SELECT u.id, 'You have been outbid on Air Jordan 1 Retro High OG Chicago. Current bid: $370.00', 0, NOW() - INTERVAL 12 HOUR
-        FROM users u WHERE u.username = 'sneakerhead_nj'
-        """,
-        """
-        INSERT INTO notifications (user_id, message, is_read, created_at)
-        SELECT u.id, 'Your listing "Nike Dunk Low Panda" received a new bid of $125.00!', 0, NOW() - INTERVAL 10 HOUR
-        FROM users u WHERE u.username = 'jordan_fan'
-        """,
-        """
-        INSERT INTO questions (user_id, item_id, body, created_at)
-        SELECT u.id, i.id, 'Does the box have any damage? Also is the size US 10.5 or EU?', NOW() - INTERVAL 18 HOUR
-        FROM users u, items i
-        WHERE u.username = 'kicks_collector' AND i.title = 'Air Jordan 1 Retro High OG Chicago'
-        """,
-        """
-        INSERT INTO answers (question_id, rep_id, body, created_at)
-        SELECT q.id, u.id, 'The box is in excellent condition with minimal shelf wear. US 10.5 = EU 44.5.', NOW() - INTERVAL 15 HOUR
-        FROM questions q, users u
-        WHERE q.body LIKE '%Does the box have any damage%' AND u.username = 'rep_mike'
-        """,
-        """
-        INSERT INTO alerts (user_id, category_id, keywords)
-        SELECT u.id, c.id, 'Jordan retro'
-        FROM users u, tmp_cats c
-        WHERE u.username = 'sneakerhead_nj' AND c.full_path = 'Sneakers > Lifestyle > Retro > High Top'
-        """,
-        """
-        INSERT INTO alerts (user_id, category_id, keywords)
-        SELECT u.id, c.id, 'Yeezy'
-        FROM users u, tmp_cats c
-        WHERE u.username = 'kicks_collector' AND c.full_path = 'Sneakers > Collector > Limited > Regional Exclusive'
-        """,
-        "DROP TEMPORARY TABLE IF EXISTS tmp_cats"
+    sample_users = [
+        {
+            "username": "jordan_fan",
+            "email": "jordan@example.com",
+            "password": "password",
+            "role": "user",
+            "created_at": current_time() - timedelta(days=30),
+        },
+        {
+            "username": "sneakerhead_nj",
+            "email": "sneaker@example.com",
+            "password": "password",
+            "role": "user",
+            "created_at": current_time() - timedelta(days=25),
+        },
+        {
+            "username": "kicks_collector",
+            "email": "collector@example.com",
+            "password": "password",
+            "role": "user",
+            "created_at": current_time() - timedelta(days=20),
+        },
+        {
+            "username": "sole_seller",
+            "email": "seller@example.com",
+            "password": "password",
+            "role": "user",
+            "created_at": current_time() - timedelta(days=15),
+        },
+        {
+            "username": "rep_mike",
+            "email": "rep@kicksbid.local",
+            "password": "password",
+            "role": "rep",
+            "created_at": current_time() - timedelta(days=60),
+        },
     ]
 
-    with db.engine.begin() as conn:
-        for q in queries:
-            conn.execute(text(q))
+    sample_items = [
+        {
+            "title": "Air Jordan 1 Retro High OG Chicago",
+            "brand": "Nike",
+            "model_name": "Air Jordan 1 Retro High OG",
+            "colorway": "White/Black-Varsity Red",
+            "style_code": "555088-101",
+            "us_size": 10.5,
+            "condition": "new",
+            "box_included": True,
+            "description": "Deadstock AJ1 Chicago colorway. Never worn, tried on once indoors. All tags attached. OG box included.",
+            "seller": "sole_seller",
+            "category_path": ("Sneakers", "Lifestyle", "Retro", "High Top"),
+            "start_price": 350.0,
+            "reserve_price": 400.0,
+            "bid_increment": 10.0,
+            "close_time": current_time() + timedelta(days=5),
+            "status": "open",
+            "created_at": current_time() - timedelta(days=2),
+        },
+        {
+            "title": "Nike Dunk Low Panda",
+            "brand": "Nike",
+            "model_name": "Dunk Low",
+            "colorway": "White/Black",
+            "style_code": "DD1391-100",
+            "us_size": 9.0,
+            "condition": "like_new",
+            "box_included": True,
+            "description": "Worn twice. No creasing. Box included. Classic Panda colorway that goes with everything.",
+            "seller": "jordan_fan",
+            "category_path": ("Sneakers", "Lifestyle", "Skate", "Dunk-Inspired"),
+            "start_price": 120.0,
+            "reserve_price": 140.0,
+            "bid_increment": 5.0,
+            "close_time": current_time() + timedelta(days=3),
+            "status": "open",
+            "created_at": current_time() - timedelta(days=1),
+        },
+        {
+            "title": "Adidas Yeezy Boost 350 V2 Zebra",
+            "brand": "Adidas",
+            "model_name": "Yeezy Boost 350 V2",
+            "colorway": "White/Core Black/Red",
+            "style_code": "CP9654",
+            "us_size": 11.0,
+            "condition": "new",
+            "box_included": True,
+            "description": "Brand new Zebra Yeezy. Purchased from Adidas confirmed app. 100% authentic with receipt.",
+            "seller": "sneakerhead_nj",
+            "category_path": ("Sneakers", "Collector", "Limited", "Regional Exclusive"),
+            "start_price": 280.0,
+            "reserve_price": 320.0,
+            "bid_increment": 10.0,
+            "close_time": current_time() + timedelta(days=7),
+            "status": "open",
+            "created_at": current_time() - timedelta(days=3),
+        },
+        {
+            "title": "Nike Air Max 90 Infrared",
+            "brand": "Nike",
+            "model_name": "Air Max 90",
+            "colorway": "White/Black-Infrared",
+            "style_code": "CT1685-100",
+            "us_size": 10.0,
+            "condition": "good",
+            "box_included": False,
+            "description": "OG AM90 Infrared. Light wear on outsole. Box not included. Cleaned and ready to ship.",
+            "seller": "kicks_collector",
+            "category_path": ("Sneakers", "Lifestyle", "Casual", "Court Classic"),
+            "start_price": 85.0,
+            "reserve_price": 100.0,
+            "bid_increment": 5.0,
+            "close_time": current_time() + timedelta(days=4),
+            "status": "open",
+            "created_at": current_time() - timedelta(days=4),
+        },
+        {
+            "title": "Jordan 4 Retro Military Black",
+            "brand": "Nike",
+            "model_name": "Air Jordan 4 Retro",
+            "colorway": "Black/Dark Charcoal-Light Graphite",
+            "style_code": "DH7138-006",
+            "us_size": 9.5,
+            "condition": "new",
+            "box_included": True,
+            "description": "Military Black 4s. Copped from SNKRS. Legit check available. Ships double boxed.",
+            "seller": "sole_seller",
+            "category_path": ("Sneakers", "Lifestyle", "Retro", "Low Top"),
+            "start_price": 300.0,
+            "reserve_price": 350.0,
+            "bid_increment": 10.0,
+            "close_time": current_time() + timedelta(days=6),
+            "status": "open",
+            "created_at": current_time() - timedelta(days=1),
+        },
+        {
+            "title": "New Balance 990v5 Made in USA Grey",
+            "brand": "New Balance",
+            "model_name": "990v5",
+            "colorway": "Grey/White",
+            "style_code": "M990GL5",
+            "us_size": 11.5,
+            "condition": "like_new",
+            "box_included": True,
+            "description": "MiUSA 990v5 in classic grey. Worn 3 times. Perfect condition. Original box and extra laces.",
+            "seller": "sneakerhead_nj",
+            "category_path": ("Sneakers", "Performance", "Running", "Daily Trainer"),
+            "start_price": 155.0,
+            "reserve_price": 180.0,
+            "bid_increment": 5.0,
+            "close_time": current_time() + timedelta(days=8),
+            "status": "open",
+            "created_at": current_time() - timedelta(days=2),
+        },
+    ]
+
+    sample_bids = [
+        {
+            "item_title": "Air Jordan 1 Retro High OG Chicago",
+            "bidder": "sneakerhead_nj",
+            "amount": 360.0,
+            "placed_at": current_time() - timedelta(days=1),
+        },
+        {
+            "item_title": "Air Jordan 1 Retro High OG Chicago",
+            "bidder": "kicks_collector",
+            "amount": 370.0,
+            "placed_at": current_time() - timedelta(hours=12),
+        },
+        {
+            "item_title": "Nike Dunk Low Panda",
+            "bidder": "kicks_collector",
+            "amount": 125.0,
+            "placed_at": current_time() - timedelta(hours=10),
+        },
+    ]
+
+    extra_sample_titles = [
+        "Air Jordan 1 Retro High OG Lost and Found",
+        "Nike Terminator High Georgetown",
+        "Air Jordan 1 Retro High OG University Blue",
+        "adidas Forum 84 High Royal Blue",
+        "Air Jordan 1 Low OG Mocha",
+        "Nike Air Force 1 Low Triple White",
+        "New Balance 550 White Green",
+        "Nike SB Dunk Low Pro Yuto Horigome",
+        "adidas Campus 00s Core Black",
+        "Puma Suede XL Black White",
+        "Nike Kobe 6 Protro Reverse Grinch",
+        "adidas AE 1 New Wave",
+        "Puma MB.03 Toxic",
+        "Air Jordan 38 Low Fundamental",
+        "JJJJound x New Balance 991 Made in UK Grey Olive",
+        "A Ma Maniere x Air Jordan 5 Dusk",
+        "Kith x ASICS Gel-Lyte III Super Orange",
+        "Nike Air Force 1 Low Linen Atmos",
+        "ASICS Gel-Lyte III Tokyo",
+        "Puma Palermo Tokyo",
+        "Nike Air Force 1 Low Triple White",
+        "Adidas Stan Smith White Green",
+        "Nike Blazer Mid 77 Vintage White",
+        "Asics Gel-Nimbus 25 Black",
+        "Puma Suede Classic XXI Black",
+        "Jordan 1 Mid Bred Toe",
+        "Nike React Infinity Run 4 Blue",
+        "Adidas Ultraboost 22 Triple Black",
+        "Nike Dunk High Pro SB Baroque Brown",
+        "Converse Chuck 70 High Top Parchment",
+        "Nike Air Jordan 3 Retro White Cement",
+        "New Balance 574 Grey Navy",
+        "Adidas Forum Low White Blue",
+        "Nike Air Max 270 React Black",
+        "Vans Old Skool Black White",
+        "Nike Air Force 1 Stussy Black",
+        "Nike LeBron 21 Akoya",
+        "Adidas Yeezy Boost 350 V2 Zebra",
+        "Air Jordan 1 Retro High OG Bred Patent",
+        "New Balance 990v6 Grey",
+        "Asics Gel-Kayano 14 Cream Black",
+    ]
+    extra_sample_usernames = ["dwiti", "sinchana", "charvi", "anish"]
+
+    try:
+        sample_usernames = [spec["username"] for spec in sample_users] + extra_sample_usernames
+        sample_titles = [spec["title"] for spec in sample_items] + extra_sample_titles
+
+        existing_users = User.query.filter(User.username.in_(sample_usernames)).all()
+        existing_user_ids = [user.id for user in existing_users]
+        existing_items = Item.query.filter(Item.title.in_(sample_titles)).all()
+        existing_item_ids = [item.id for item in existing_items]
+
+        if existing_user_ids or existing_item_ids:
+            existing_questions = Question.query.filter(
+                (Question.user_id.in_(existing_user_ids or [-1])) | (Question.item_id.in_(existing_item_ids or [-1]))
+            ).all()
+            existing_question_ids = [question.id for question in existing_questions]
+
+            Answer.query.filter(
+                (Answer.rep_id.in_(existing_user_ids or [-1])) | (Answer.question_id.in_(existing_question_ids or [-1]))
+            ).delete(synchronize_session=False)
+            Notification.query.filter(Notification.user_id.in_(existing_user_ids or [-1])).delete(
+                synchronize_session=False
+            )
+            Alert.query.filter(Alert.user_id.in_(existing_user_ids or [-1])).delete(synchronize_session=False)
+            AutoBid.query.filter(
+                (AutoBid.bidder_id.in_(existing_user_ids or [-1]))
+                | (AutoBid.item_id.in_(existing_item_ids or [-1]))
+            ).delete(synchronize_session=False)
+            Bid.query.filter(
+                (Bid.bidder_id.in_(existing_user_ids or [-1])) | (Bid.item_id.in_(existing_item_ids or [-1]))
+            ).delete(synchronize_session=False)
+            Question.query.filter(Question.id.in_(existing_question_ids or [-1])).delete(synchronize_session=False)
+            Item.query.filter(Item.id.in_(existing_item_ids or [-1])).delete(synchronize_session=False)
+            User.query.filter(User.id.in_(existing_user_ids or [-1])).delete(synchronize_session=False)
+            db.session.flush()
+
+        users_by_username = {}
+        for spec in sample_users:
+            user = User(
+                username=spec["username"],
+                email=spec["email"],
+                password_hash=generate_password_hash(spec["password"]),
+                role=spec["role"],
+                is_active=True,
+                created_at=spec["created_at"],
+            )
+            db.session.add(user)
+            users_by_username[spec["username"]] = user
+
+        db.session.flush()
+
+        items_by_title = {}
+        for spec in sample_items:
+            category = get_category_by_path(spec["category_path"])
+            if category is None:
+                raise ValueError(f"Missing sample-data category path: {' > '.join(spec['category_path'])}")
+
+            item = Item(
+                title=spec["title"],
+                brand=spec["brand"],
+                model_name=spec["model_name"],
+                colorway=spec["colorway"],
+                style_code=spec["style_code"],
+                us_size=spec["us_size"],
+                condition=spec["condition"],
+                box_included=spec["box_included"],
+                description=spec["description"],
+                seller_id=users_by_username[spec["seller"]].id,
+                category_id=category.id,
+                start_price=spec["start_price"],
+                reserve_price=spec["reserve_price"],
+                bid_increment=spec["bid_increment"],
+                close_time=spec["close_time"],
+                status=spec["status"],
+                created_at=spec["created_at"],
+            )
+            db.session.add(item)
+            db.session.flush()
+            items_by_title[spec["title"]] = item
+
+        for spec in sample_bids:
+            db.session.add(
+                Bid(
+                    item_id=items_by_title[spec["item_title"]].id,
+                    bidder_id=users_by_username[spec["bidder"]].id,
+                    amount=spec["amount"],
+                    placed_at=spec["placed_at"],
+                    is_auto=False,
+                )
+            )
+
+        db.session.flush()
+
+        db.session.add(
+            AutoBid(
+                item_id=items_by_title["Adidas Yeezy Boost 350 V2 Zebra"].id,
+                bidder_id=users_by_username["jordan_fan"].id,
+                upper_limit=400.0,
+            )
+        )
+
+        db.session.add(
+            Notification(
+                user_id=users_by_username["sneakerhead_nj"].id,
+                message="You have been outbid on Air Jordan 1 Retro High OG Chicago. Current bid: $370.00",
+                is_read=False,
+                created_at=current_time() - timedelta(hours=12),
+            )
+        )
+        db.session.add(
+            Notification(
+                user_id=users_by_username["jordan_fan"].id,
+                message='Your listing "Nike Dunk Low Panda" received a new bid of $125.00!',
+                is_read=False,
+                created_at=current_time() - timedelta(hours=10),
+            )
+        )
+
+        question = Question(
+            user_id=users_by_username["kicks_collector"].id,
+            item_id=items_by_title["Air Jordan 1 Retro High OG Chicago"].id,
+            body="Does the box have any damage? Also is the size US 10.5 or EU?",
+            created_at=current_time() - timedelta(hours=18),
+        )
+        db.session.add(question)
+        db.session.flush()
+
+        db.session.add(
+            Answer(
+                question_id=question.id,
+                rep_id=users_by_username["rep_mike"].id,
+                body="The box is in excellent condition with minimal shelf wear. US 10.5 = EU 44.5.",
+                created_at=current_time() - timedelta(hours=15),
+            )
+        )
+
+        retro_category = get_category_by_path(("Sneakers", "Lifestyle", "Retro", "High Top"))
+        limited_category = get_category_by_path(("Sneakers", "Collector", "Limited", "Regional Exclusive"))
+        if retro_category is None or limited_category is None:
+            raise ValueError("Missing sample-data alert categories.")
+
+        db.session.add(
+            Alert(
+                user_id=users_by_username["sneakerhead_nj"].id,
+                category_id=retro_category.id,
+                keywords="Jordan retro",
+            )
+        )
+        db.session.add(
+            Alert(
+                user_id=users_by_username["kicks_collector"].id,
+                category_id=limited_category.id,
+                keywords="Yeezy",
+            )
+        )
+
+        queries = [
+            "DROP TEMPORARY TABLE IF EXISTS tmp_cats",
+            """
+            CREATE TEMPORARY TABLE tmp_cats AS
+            SELECT c4.id, CONCAT(c1.name, ' > ', c2.name, ' > ', c3.name, ' > ', c4.name) AS full_path
+            FROM categories c1
+            JOIN categories c2 ON c2.parent_id = c1.id
+            JOIN categories c3 ON c3.parent_id = c2.id
+            JOIN categories c4 ON c4.parent_id = c3.id
+            """,
+            """
+            INSERT IGNORE INTO users (username, email, password_hash, role, is_active, created_at) VALUES
+              ('dwiti', 'dwiti@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw_new', 'user', 1, NOW() - INTERVAL 10 DAY),
+              ('sinchana', 'sinchana@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw_new', 'user', 1, NOW() - INTERVAL 9 DAY),
+              ('charvi', 'charvi@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw_new', 'user', 1, NOW() - INTERVAL 8 DAY),
+              ('anish', 'anish@kicksbid.local', 'scrypt:32768:8:1$abc$hashedpw_anish', 'user', 1, NOW() - INTERVAL 7 DAY)
+            """,
+            """
+            INSERT IGNORE INTO items (
+              `title`, `brand`, `model_name`, `colorway`, `style_code`,
+              `us_size`, `condition`, `box_included`, `description`,
+              `seller_id`, `category_id`,
+              `start_price`, `reserve_price`, `bid_increment`,
+              `close_time`, `status`, `created_at`
+            )
+            SELECT
+              src.title,
+              src.brand,
+              src.model_name,
+              src.colorway,
+              src.style_code,
+              src.us_size,
+              src.`condition`,
+              src.box_included,
+              src.description,
+              (SELECT id FROM users WHERE username = src.seller_username),
+              (SELECT id FROM tmp_cats WHERE full_path = src.category_path),
+              src.start_price,
+              src.reserve_price,
+              src.bid_increment,
+              src.close_time,
+              src.status,
+              src.created_at
+            FROM (
+              SELECT
+                'Air Jordan 1 Retro High OG Lost and Found' AS title,
+                'Jordan' AS brand,
+                'Air Jordan 1 Retro High OG' AS model_name,
+                'Varsity Red / Black / Muslin' AS colorway,
+                'DZ5485-612' AS style_code,
+                10.0 AS us_size,
+                'new' AS `condition`,
+                1 AS box_included,
+                'Crisp collar cracking, extra laces, and a clean vintage finish throughout the pair.' AS description,
+                'sole_seller' AS seller_username,
+                'Sneakers > Lifestyle > Retro > High Top' AS category_path,
+                410.00 AS start_price,
+                460.00 AS reserve_price,
+                10.00 AS bid_increment,
+                NOW() + INTERVAL 11 DAY AS close_time,
+                'open' AS status,
+                NOW() - INTERVAL 5 DAY AS created_at
+              UNION ALL SELECT
+                'Nike Terminator High Georgetown',
+                'Nike',
+                'Terminator High',
+                'Granite / Dark Obsidian / Sail',
+                'FD0650-001',
+                9.5,
+                'like_new',
+                1,
+                'Leather panels are sharp, outsole drag is minimal, and the original box is included.',
+                'jordan_fan',
+                'Sneakers > Lifestyle > Retro > High Top',
+                120.00,
+                145.00,
+                5.00,
+                NOW() + INTERVAL 5 DAY,
+                'open',
+                NOW() - INTERVAL 3 DAY
+              UNION ALL SELECT
+                'Air Jordan 1 Retro High OG University Blue',
+                'Jordan',
+                'Air Jordan 1 Retro High OG',
+                'University Blue / Black / White',
+                '555088-134',
+                10.5,
+                'like_new',
+                1,
+                'Soft suede is clean, midsoles are bright, and the pair has only been worn indoors twice.',
+                'sneakerhead_nj',
+                'Sneakers > Lifestyle > Retro > High Top',
+                285.00,
+                325.00,
+                10.00,
+                NOW() + INTERVAL 9 DAY,
+                'open',
+                NOW() - INTERVAL 6 DAY
+              UNION ALL SELECT
+                'adidas Forum 84 High Royal Blue',
+                'Adidas',
+                'Forum 84 High',
+                'Cloud White / Royal Blue',
+                'FY7793',
+                11.0,
+                'good',
+                0,
+                'Vintage shape looks great on foot and the leather still feels structured despite regular wear.',
+                'kicks_collector',
+                'Sneakers > Lifestyle > Retro > High Top',
+                110.00,
+                130.00,
+                5.00,
+                NOW() + INTERVAL 6 DAY,
+                'open',
+                NOW() - INTERVAL 2 DAY
+              UNION ALL SELECT
+                'Air Jordan 1 Low OG Mocha',
+                'Jordan',
+                'Air Jordan 1 Low OG',
+                'Sail / Black / Dark Mocha',
+                'CZ0790-102',
+                9.0,
+                'new',
+                1,
+                'Fresh pair with rich mocha suede, untouched outsole, and all original packaging.',
+                'sole_seller',
+                'Sneakers > Lifestyle > Retro > Low Top',
+                365.00,
+                410.00,
+                10.00,
+                NOW() + INTERVAL 10 DAY,
+                'open',
+                NOW() - INTERVAL 4 DAY
+              UNION ALL SELECT
+                'Nike Air Force 1 Low Triple White',
+                'Nike',
+                'Air Force 1 Low',
+                'White / White',
+                'CW2288-111',
+                9.5,
+                'good',
+                1,
+                'Classic daily pair with some light creasing on the toe box but plenty of life left.',
+                'jordan_fan',
+                'Sneakers > Lifestyle > Retro > Low Top',
+                80.00,
+                95.00,
+                5.00,
+                NOW() + INTERVAL 4 DAY,
+                'open',
+                NOW() - INTERVAL 7 DAY
+              UNION ALL SELECT
+                'New Balance 550 White Green',
+                'New Balance',
+                '550',
+                'White / Green',
+                'BB550WT1',
+                10.0,
+                'like_new',
+                1,
+                'Clean basketball retro with bright leather panels, sharp heel branding, and the original box.',
+                'sneakerhead_nj',
+                'Sneakers > Lifestyle > Retro > Low Top',
+                115.00,
+                135.00,
+                5.00,
+                NOW() + INTERVAL 7 DAY,
+                'open',
+                NOW() - INTERVAL 3 DAY
+              UNION ALL SELECT
+                'Nike SB Dunk Low Pro Yuto Horigome',
+                'Nike',
+                'SB Dunk Low Pro',
+                'Wolf Grey / Iron Grey / Sail',
+                'FQ1180-001',
+                10.0,
+                'new',
+                1,
+                'Cross stitching and suede panels are pristine and the extra laces are still sealed.',
+                'sole_seller',
+                'Sneakers > Lifestyle > Skate > Dunk-Inspired',
+                290.00,
+                340.00,
+                10.00,
+                NOW() + INTERVAL 8 DAY,
+                'open',
+                NOW() - INTERVAL 2 DAY
+              UNION ALL SELECT
+                'adidas Campus 00s Core Black',
+                'Adidas',
+                'Campus 00s',
+                'Core Black / Cloud White',
+                'HQ8708',
+                9.0,
+                'good',
+                1,
+                'Chunky skate-inspired shape with soft suede, clean stripes, and some mild heel wear.',
+                'kicks_collector',
+                'Sneakers > Lifestyle > Skate > Dunk-Inspired',
+                90.00,
+                110.00,
+                5.00,
+                NOW() + INTERVAL 3 DAY,
+                'open',
+                NOW() - INTERVAL 5 DAY
+              UNION ALL SELECT
+                'Puma Suede XL Black White',
+                'Puma',
+                'Suede XL',
+                'Black / White',
+                '395205-01',
+                11.0,
+                'like_new',
+                1,
+                'Oversized laces and padded tongue are clean, with only slight wear on the outsole.',
+                'jordan_fan',
+                'Sneakers > Lifestyle > Skate > Dunk-Inspired',
+                85.00,
+                100.00,
+                5.00,
+                NOW() + INTERVAL 12 DAY,
+                'open',
+                NOW() - INTERVAL 8 DAY
+              UNION ALL SELECT
+                'Nike Kobe 6 Protro Reverse Grinch',
+                'Nike',
+                'Kobe 6 Protro',
+                'Bright Crimson / Black / Electric Green',
+                'FV4921-600',
+                10.5,
+                'new',
+                1,
+                'Bright scales pop in hand, cushioning feels fresh, and the pair is still fully deadstock.',
+                'sole_seller',
+                'Sneakers > Performance > Basketball > Signature',
+                450.00,
+                500.00,
+                10.00,
+                NOW() + INTERVAL 14 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'adidas AE 1 New Wave',
+                'Adidas',
+                'AE 1',
+                'Core Black / Metallic Gold / Lucid Lime',
+                'IF1864',
+                11.5,
+                'new',
+                1,
+                'Explosive hoop pair with clean knit shell, bold tooling, and untouched traction.',
+                'sneakerhead_nj',
+                'Sneakers > Performance > Basketball > Signature',
+                170.00,
+                200.00,
+                10.00,
+                NOW() + INTERVAL 5 DAY,
+                'open',
+                NOW() - INTERVAL 2 DAY
+              UNION ALL SELECT
+                'Puma MB.03 Toxic',
+                'Puma',
+                'MB.03',
+                'Slime Green / Black',
+                '379331-01',
+                12.0,
+                'like_new',
+                1,
+                'Wild colorway with clean engineered mesh, responsive foam, and almost no outsole wear.',
+                'kicks_collector',
+                'Sneakers > Performance > Basketball > Signature',
+                150.00,
+                180.00,
+                10.00,
+                NOW() + INTERVAL 6 DAY,
+                'open',
+                NOW() - INTERVAL 3 DAY
+              UNION ALL SELECT
+                'Air Jordan 38 Low Fundamental',
+                'Jordan',
+                'Air Jordan 38 Low',
+                'White / Black / Gamma Blue',
+                'FD2325-101',
+                10.0,
+                'good',
+                1,
+                'Solid performance setup with light indoor wear and plenty of traction left on the outsole.',
+                'sole_seller',
+                'Sneakers > Performance > Basketball > Signature',
+                140.00,
+                165.00,
+                5.00,
+                NOW() + INTERVAL 7 DAY,
+                'open',
+                NOW() - INTERVAL 4 DAY
+              UNION ALL SELECT
+                'JJJJound x New Balance 991 Made in UK Grey Olive',
+                'New Balance',
+                '991 Made in UK',
+                'Grey / Olive / Cream',
+                'M991JJA',
+                10.5,
+                'new',
+                1,
+                'Premium pigskin and mesh pair with subtle co-branding and a very clean Made in UK finish.',
+                'sneakerhead_nj',
+                'Sneakers > Collector > Collaboration > Designer',
+                390.00,
+                440.00,
+                10.00,
+                NOW() + INTERVAL 13 DAY,
+                'open',
+                NOW() - INTERVAL 6 DAY
+              UNION ALL SELECT
+                'A Ma Maniere x Air Jordan 5 Dusk',
+                'Jordan',
+                'Air Jordan 5',
+                'Black / Burgundy Crush',
+                'FZ5758-004',
+                9.5,
+                'new',
+                1,
+                'Luxury collab pair with buttery materials, quilted lining, and all special packaging included.',
+                'sole_seller',
+                'Sneakers > Collector > Collaboration > Designer',
+                330.00,
+                380.00,
+                10.00,
+                NOW() + INTERVAL 9 DAY,
+                'open',
+                NOW() - INTERVAL 4 DAY
+              UNION ALL SELECT
+                'Kith x ASICS Gel-Lyte III Super Orange',
+                'ASICS',
+                'Gel-Lyte III',
+                'Super Orange / White / Grey',
+                '1201A954-100',
+                9.0,
+                'like_new',
+                1,
+                'Split tongue sits perfectly, suede is plush, and the pair was worn only a couple of times.',
+                'jordan_fan',
+                'Sneakers > Collector > Collaboration > Designer',
+                210.00,
+                240.00,
+                10.00,
+                NOW() + INTERVAL 8 DAY,
+                'open',
+                NOW() - INTERVAL 5 DAY
+              UNION ALL SELECT
+                'Nike Air Force 1 Low Linen Atmos',
+                'Nike',
+                'Air Force 1 Low',
+                'Linen / Atmosphere',
+                'CU8859-200',
+                10.0,
+                'like_new',
+                1,
+                'Atmos exclusive look with soft linen leather, clean midsoles, and subtle pink accents.',
+                'kicks_collector',
+                'Sneakers > Collector > Limited > Regional Exclusive',
+                220.00,
+                250.00,
+                10.00,
+                NOW() + INTERVAL 4 DAY,
+                'open',
+                NOW() - INTERVAL 3 DAY
+              UNION ALL SELECT
+                'ASICS Gel-Lyte III Tokyo',
+                'ASICS',
+                'Gel-Lyte III',
+                'Smoke Grey / Neon / Black',
+                '1201A830-020',
+                9.5,
+                'good',
+                1,
+                'Tokyo-inspired pair with comfortable cushioning, visible color pops, and some gentle wear.',
+                'sneakerhead_nj',
+                'Sneakers > Collector > Limited > Regional Exclusive',
+                140.00,
+                165.00,
+                5.00,
+                NOW() + INTERVAL 2 DAY,
+                'open',
+                NOW() - INTERVAL 6 DAY
+              UNION ALL SELECT
+                'Puma Palermo Tokyo',
+                'Puma',
+                'Palermo',
+                'Navy / Red / White',
+                '396463-01',
+                9.0,
+                'like_new',
+                1,
+                'Slim terrace-style pair with a Tokyo callout, clean suede upper, and minimal signs of wear.',
+                'jordan_fan',
+                'Sneakers > Collector > Limited > Regional Exclusive',
+                95.00,
+                115.00,
+                5.00,
+                NOW() + INTERVAL 3 DAY,
+                'open',
+                NOW() - INTERVAL 2 DAY
+            ) AS src
+            """,
+            """
+            INSERT IGNORE INTO items (
+              `title`, `brand`, `model_name`, `colorway`, `style_code`,
+              `us_size`, `condition`, `box_included`, `description`,
+              `seller_id`, `category_id`,
+              `start_price`, `reserve_price`, `bid_increment`,
+              `close_time`, `status`, `created_at`
+            )
+            SELECT
+              src.title,
+              src.brand,
+              src.model_name,
+              src.colorway,
+              src.style_code,
+              src.us_size,
+              src.`condition`,
+              src.box_included,
+              src.description,
+              (SELECT id FROM users WHERE username = 'dwiti'),
+              (SELECT id FROM tmp_cats WHERE full_path = src.category_path),
+              src.start_price,
+              src.reserve_price,
+              src.bid_increment,
+              src.close_time,
+              src.status,
+              src.created_at
+            FROM (
+              SELECT
+                'Nike Air Force 1 Low Triple White' AS title,
+                'Nike' AS brand,
+                'Air Force 1 Low' AS model_name,
+                'White / White' AS colorway,
+                'CW2288-111' AS style_code,
+                8.5 AS us_size,
+                'new' AS `condition`,
+                1 AS box_included,
+                'Clean all-white pair with crisp leather, untouched outsole, and classic everyday wearability.' AS description,
+                'Sneakers > Lifestyle > Casual > Court Classic' AS category_path,
+                90.00 AS start_price,
+                110.00 AS reserve_price,
+                5.00 AS bid_increment,
+                NOW() + INTERVAL 4 DAY AS close_time,
+                'open' AS status,
+                NOW() - INTERVAL 1 DAY AS created_at
+              UNION ALL SELECT
+                'Adidas Stan Smith White Green',
+                'Adidas',
+                'Stan Smith',
+                'White / Green',
+                'M20324',
+                9.0,
+                'like_new',
+                1,
+                'Minimal wear on the sole, bright leather upper, and the original box is still included.',
+                'Sneakers > Lifestyle > Casual > Slip-On',
+                75.00,
+                95.00,
+                5.00,
+                NOW() + INTERVAL 6 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Nike Blazer Mid 77 Vintage White',
+                'Nike',
+                'Blazer Mid 77 Vintage',
+                'White / Black / Sail',
+                'BQ6806-100',
+                10.0,
+                'new',
+                1,
+                'Fresh retro pair with clean suede overlays, sharp swoosh edges, and zero signs of wear.',
+                'Sneakers > Lifestyle > Retro > High Top',
+                95.00,
+                115.00,
+                5.00,
+                NOW() + INTERVAL 8 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Asics Gel-Nimbus 25 Black',
+                'ASICS',
+                'Gel-Nimbus 25',
+                'Black / Graphite Grey',
+                '1011B547-001',
+                9.5,
+                'new',
+                1,
+                'Plush daily trainer with fresh foam underfoot, breathable mesh, and a clean blacked-out finish.',
+                'Sneakers > Performance > Running > Daily Trainer',
+                140.00,
+                160.00,
+                5.00,
+                NOW() + INTERVAL 10 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Puma Suede Classic XXI Black',
+                'Puma',
+                'Suede Classic XXI',
+                'Black / White',
+                '374915-01',
+                8.0,
+                'good',
+                1,
+                'Classic low-profile suede pair with some gentle outsole wear but a clean upper and shape.',
+                'Sneakers > Lifestyle > Casual > Court Classic',
+                55.00,
+                75.00,
+                5.00,
+                NOW() + INTERVAL 12 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+            ) AS src
+            """,
+            """
+            INSERT IGNORE INTO items (
+              `title`, `brand`, `model_name`, `colorway`, `style_code`,
+              `us_size`, `condition`, `box_included`, `description`,
+              `seller_id`, `category_id`,
+              `start_price`, `reserve_price`, `bid_increment`,
+              `close_time`, `status`, `created_at`
+            )
+            SELECT
+              src.title,
+              src.brand,
+              src.model_name,
+              src.colorway,
+              src.style_code,
+              src.us_size,
+              src.`condition`,
+              src.box_included,
+              src.description,
+              (SELECT id FROM users WHERE username = 'sinchana'),
+              (SELECT id FROM tmp_cats WHERE full_path = src.category_path),
+              src.start_price,
+              src.reserve_price,
+              src.bid_increment,
+              src.close_time,
+              src.status,
+              src.created_at
+            FROM (
+              SELECT
+                'Jordan 1 Mid Bred Toe' AS title,
+                'Jordan' AS brand,
+                'Air Jordan 1 Mid' AS model_name,
+                'Black / Red / White' AS colorway,
+                '554724-079' AS style_code,
+                7.5 AS us_size,
+                'like_new' AS `condition`,
+                1 AS box_included,
+                'Color blocking is sharp, leather feels great, and the pair has only seen a few careful wears.' AS description,
+                'Sneakers > Lifestyle > Retro > High Top' AS category_path,
+                130.00 AS start_price,
+                150.00 AS reserve_price,
+                5.00 AS bid_increment,
+                NOW() + INTERVAL 5 DAY AS close_time,
+                'open' AS status,
+                NOW() - INTERVAL 1 DAY AS created_at
+              UNION ALL SELECT
+                'Nike React Infinity Run 4 Blue',
+                'Nike',
+                'React Infinity Run 4',
+                'Blue / White / Black',
+                'DR2665-401',
+                8.0,
+                'new',
+                1,
+                'Performance runner with springy cushioning, stable platform, and a fresh blue finish.',
+                'Sneakers > Performance > Running > Race Day',
+                120.00,
+                140.00,
+                5.00,
+                NOW() + INTERVAL 7 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Adidas Ultraboost 22 Triple Black',
+                'Adidas',
+                'Ultraboost 22',
+                'Core Black / Core Black',
+                'GX3062',
+                9.0,
+                'like_new',
+                1,
+                'Boost feels lively, Primeknit is clean, and the pair has very light wear overall.',
+                'Sneakers > Performance > Running > Daily Trainer',
+                150.00,
+                170.00,
+                5.00,
+                NOW() + INTERVAL 9 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Nike Dunk High Pro SB Baroque Brown',
+                'Nike',
+                'Dunk High Pro SB',
+                'Baroque Brown / Black',
+                '305050-202',
+                10.5,
+                'good',
+                1,
+                'Older SB pair with solid structure, rich brown panels, and honest signs of wear for the age.',
+                'Sneakers > Lifestyle > Skate > Dunk-Inspired',
+                180.00,
+                200.00,
+                5.00,
+                NOW() + INTERVAL 11 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Converse Chuck 70 High Top Parchment',
+                'Converse',
+                'Chuck 70 High',
+                'Parchment / Egret / Black',
+                '162053C',
+                7.0,
+                'new',
+                1,
+                'Classic canvas high-top with clean foxing, fresh insole, and timeless vintage-inspired detailing.',
+                'Sneakers > Lifestyle > Retro > High Top',
+                80.00,
+                100.00,
+                5.00,
+                NOW() + INTERVAL 12 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+            ) AS src
+            """,
+            """
+            INSERT IGNORE INTO items (
+              `title`, `brand`, `model_name`, `colorway`, `style_code`,
+              `us_size`, `condition`, `box_included`, `description`,
+              `seller_id`, `category_id`,
+              `start_price`, `reserve_price`, `bid_increment`,
+              `close_time`, `status`, `created_at`
+            )
+            SELECT
+              src.title,
+              src.brand,
+              src.model_name,
+              src.colorway,
+              src.style_code,
+              src.us_size,
+              src.`condition`,
+              src.box_included,
+              src.description,
+              (SELECT id FROM users WHERE username = 'charvi'),
+              (SELECT id FROM tmp_cats WHERE full_path = src.category_path),
+              src.start_price,
+              src.reserve_price,
+              src.bid_increment,
+              src.close_time,
+              src.status,
+              src.created_at
+            FROM (
+              SELECT
+                'Nike Air Jordan 3 Retro White Cement' AS title,
+                'Nike' AS brand,
+                'Air Jordan 3 Retro' AS model_name,
+                'White / Cement Grey / Black / Fire Red' AS colorway,
+                'DN3707-100' AS style_code,
+                11.0 AS us_size,
+                'new' AS `condition`,
+                1 AS box_included,
+                'Classic elephant print pair with crisp leather, bright midsoles, and fully deadstock condition.' AS description,
+                'Sneakers > Lifestyle > Retro > Low Top' AS category_path,
+                250.00 AS start_price,
+                270.00 AS reserve_price,
+                5.00 AS bid_increment,
+                NOW() + INTERVAL 6 DAY AS close_time,
+                'open' AS status,
+                NOW() - INTERVAL 1 DAY AS created_at
+              UNION ALL SELECT
+                'New Balance 574 Grey Navy',
+                'New Balance',
+                '574',
+                'Grey / Navy',
+                'ML574EVN',
+                9.5,
+                'like_new',
+                1,
+                'Suede and mesh remain clean, ENCAP feels supportive, and there is very little outsole wear.',
+                'Sneakers > Lifestyle > Casual > Court Classic',
+                70.00,
+                90.00,
+                5.00,
+                NOW() + INTERVAL 8 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Adidas Forum Low White Blue',
+                'Adidas',
+                'Forum Low',
+                'White / Royal Blue',
+                'FY7757',
+                8.5,
+                'new',
+                1,
+                'Fresh low-top hoops pair with clean ankle strap, premium leather feel, and sharp blue accents.',
+                'Sneakers > Performance > Basketball > Team',
+                100.00,
+                120.00,
+                5.00,
+                NOW() + INTERVAL 9 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Nike Air Max 270 React Black',
+                'Nike',
+                'Air Max 270 React',
+                'Black / Anthracite / White',
+                'CI3866-001',
+                10.0,
+                'good',
+                1,
+                'Comfort-focused lifestyle runner with visible Air unit, some wear on the sole, and a clean upper.',
+                'Sneakers > Lifestyle > Casual > Slip-On',
+                85.00,
+                105.00,
+                5.00,
+                NOW() + INTERVAL 10 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Vans Old Skool Black White',
+                'Vans',
+                'Old Skool',
+                'Black / White',
+                'VN000D3HY28',
+                9.0,
+                'new',
+                1,
+                'Iconic skate staple with fresh side stripe, clean foxing tape, and a brand-new waffle outsole.',
+                'Sneakers > Lifestyle > Skate > Cupsole',
+                65.00,
+                85.00,
+                5.00,
+                NOW() + INTERVAL 12 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+            ) AS src
+            """,
+            """
+            INSERT IGNORE INTO items (
+              `title`, `brand`, `model_name`, `colorway`, `style_code`,
+              `us_size`, `condition`, `box_included`, `description`,
+              `seller_id`, `category_id`,
+              `start_price`, `reserve_price`, `bid_increment`,
+              `close_time`, `status`, `created_at`
+            )
+            SELECT
+              src.title,
+              src.brand,
+              src.model_name,
+              src.colorway,
+              src.style_code,
+              src.us_size,
+              src.`condition`,
+              src.box_included,
+              src.description,
+              (SELECT id FROM users WHERE username = 'anish'),
+              (SELECT id FROM tmp_cats WHERE full_path = src.category_path),
+              src.start_price,
+              src.reserve_price,
+              src.bid_increment,
+              src.close_time,
+              src.status,
+              src.created_at
+            FROM (
+              SELECT
+                'Nike Air Force 1 Stussy Black' AS title,
+                'Nike' AS brand,
+                'Air Force 1 Stussy' AS model_name,
+                'Black / Black' AS colorway,
+                'FN7649-110' AS style_code,
+                10.5 AS us_size,
+                'new' AS `condition`,
+                1 AS box_included,
+                'Stussy collaboration pair with sharp embroidery, clean leather panels, and a fresh all-black finish.' AS description,
+                'Sneakers > Lifestyle > Skate > Dunk-Inspired' AS category_path,
+                180.00 AS start_price,
+                205.00 AS reserve_price,
+                10.00 AS bid_increment,
+                NOW() + INTERVAL 5 DAY AS close_time,
+                'open' AS status,
+                NOW() - INTERVAL 1 DAY AS created_at
+              UNION ALL SELECT
+                'Nike LeBron 21 Akoya',
+                'Nike',
+                'LeBron 21',
+                'Akoya / Light Bone / Sail',
+                'FV2345-100',
+                11.0,
+                'new',
+                1,
+                'Performance-ready LeBron pair with supportive cushioning, crisp upper materials, and zero court wear.',
+                'Sneakers > Performance > Basketball > Signature',
+                160.00,
+                185.00,
+                10.00,
+                NOW() + INTERVAL 7 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Adidas Yeezy Boost 350 V2 Zebra',
+                'Adidas',
+                'Yeezy Boost 350 V2',
+                'White / Core Black / Red',
+                'CP9654',
+                10.5,
+                'new',
+                1,
+                'Iconic Zebra pair with bright Boost cushioning, strong knit patterning, and a fully deadstock presentation.',
+                'Sneakers > Collector > Limited > Regional Exclusive',
+                280.00,
+                305.00,
+                10.00,
+                NOW() + INTERVAL 9 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Air Jordan 1 Retro High OG Bred Patent',
+                'Jordan',
+                'Air Jordan 1 Retro High OG',
+                'Black / White / Varsity Red',
+                '555088-023',
+                10.5,
+                'new',
+                1,
+                'Glossy patent leather pair with rich red panels, crisp wings branding, and untouched outsoles.',
+                'Sneakers > Lifestyle > Retro > High Top',
+                320.00,
+                345.00,
+                10.00,
+                NOW() + INTERVAL 11 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'New Balance 990v6 Grey',
+                'New Balance',
+                '990v6',
+                'Grey / Silver',
+                'U990TC6',
+                11.0,
+                'like_new',
+                1,
+                'Made in USA runner with clean mesh and suede, responsive cushioning, and only very light wear overall.',
+                'Sneakers > Performance > Running > Daily Trainer',
+                175.00,
+                200.00,
+                10.00,
+                NOW() + INTERVAL 13 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+              UNION ALL SELECT
+                'Asics Gel-Kayano 14 Cream Black',
+                'ASICS',
+                'Gel-Kayano 14',
+                'Cream / Black / Silver',
+                '1201A019-108',
+                10.0,
+                'new',
+                1,
+                'Popular retro runner with layered mesh panels, clean metallic accents, and a comfortable fresh setup.',
+                'Sneakers > Lifestyle > Retro > Low Top',
+                130.00,
+                155.00,
+                10.00,
+                NOW() + INTERVAL 14 DAY,
+                'open',
+                NOW() - INTERVAL 1 DAY
+            ) AS src
+            """,
+        ]
+
+        extra_bid_specs = [
+            ("Air Jordan 1 Retro High OG Lost and Found", "kicks_collector", 420.00, "22 HOUR"),
+            ("Air Jordan 1 Retro High OG Lost and Found", "sneakerhead_nj", 430.00, "12 HOUR"),
+            ("Air Jordan 1 Retro High OG University Blue", "jordan_fan", 295.00, "20 HOUR"),
+            ("Air Jordan 1 Retro High OG University Blue", "sole_seller", 305.00, "9 HOUR"),
+            ("Nike SB Dunk Low Pro Yuto Horigome", "jordan_fan", 300.00, "18 HOUR"),
+            ("Nike SB Dunk Low Pro Yuto Horigome", "kicks_collector", 310.00, "7 HOUR"),
+            ("Nike Kobe 6 Protro Reverse Grinch", "sneakerhead_nj", 460.00, "16 HOUR"),
+            ("Nike Kobe 6 Protro Reverse Grinch", "kicks_collector", 470.00, "6 HOUR"),
+            ("JJJJound x New Balance 991 Made in UK Grey Olive", "sole_seller", 400.00, "15 HOUR"),
+            ("JJJJound x New Balance 991 Made in UK Grey Olive", "jordan_fan", 410.00, "5 HOUR"),
+        ]
+
+        for item_title, bidder_username, amount, interval_literal in extra_bid_specs:
+            queries.extend(
+                [
+                    f"SET @seed_item_id = (SELECT id FROM items WHERE title = '{item_title}')",
+                    f"SET @seed_bidder_id = (SELECT id FROM users WHERE username = '{bidder_username}')",
+                    (
+                        "INSERT INTO bids (item_id, bidder_id, amount, placed_at, is_auto) "
+                        f"VALUES (@seed_item_id, @seed_bidder_id, {amount:.2f}, NOW() - INTERVAL {interval_literal}, 0)"
+                    ),
+                ]
+            )
+
+        queries.extend(
+            [
+                """
+                INSERT INTO notifications (user_id, message, is_read, created_at)
+                SELECT
+                  (SELECT id FROM users WHERE username = src.username),
+                  src.message,
+                  0,
+                  src.created_at
+                FROM (
+                  SELECT
+                    'kicks_collector' AS username,
+                    'You have been outbid on Air Jordan 1 Retro High OG Lost and Found. Current bid: $430.00' AS message,
+                    NOW() - INTERVAL 12 HOUR AS created_at
+                  UNION ALL SELECT
+                    'jordan_fan',
+                    'You have been outbid on Air Jordan 1 Retro High OG University Blue. Current bid: $305.00',
+                    NOW() - INTERVAL 9 HOUR
+                  UNION ALL SELECT
+                    'jordan_fan',
+                    'You have been outbid on Nike SB Dunk Low Pro Yuto Horigome. Current bid: $310.00',
+                    NOW() - INTERVAL 7 HOUR
+                  UNION ALL SELECT
+                    'sneakerhead_nj',
+                    'You have been outbid on Nike Kobe 6 Protro Reverse Grinch. Current bid: $470.00',
+                    NOW() - INTERVAL 6 HOUR
+                  UNION ALL SELECT
+                    'sole_seller',
+                    'You have been outbid on JJJJound x New Balance 991 Made in UK Grey Olive. Current bid: $410.00',
+                    NOW() - INTERVAL 5 HOUR
+                ) AS src
+                """,
+                "DROP TEMPORARY TABLE IF EXISTS tmp_cats",
+            ]
+        )
+
+        connection = db.session.connection()
+        for query in queries:
+            connection.execute(text(query))
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
 
 def parse_args():
