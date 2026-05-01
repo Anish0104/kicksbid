@@ -1455,6 +1455,46 @@ def load_sql_sample_data():
                 ]
             )
 
+        queries.extend(
+            [
+                """
+                INSERT INTO notifications (user_id, message, is_read, created_at)
+                SELECT
+                  (SELECT id FROM users WHERE username = src.username),
+                  src.message,
+                  0,
+                  src.created_at
+                FROM (
+                  SELECT
+                    'kicks_collector' AS username,
+                    'You have been outbid on Air Jordan 1 Retro High OG Lost and Found. Current bid: $430.00' AS message,
+                    NOW() - INTERVAL 12 HOUR AS created_at
+                  UNION ALL SELECT
+                    'jordan_fan',
+                    'You have been outbid on Air Jordan 1 Retro High OG University Blue. Current bid: $305.00',
+                    NOW() - INTERVAL 9 HOUR
+                  UNION ALL SELECT
+                    'jordan_fan',
+                    'You have been outbid on Nike SB Dunk Low Pro Yuto Horigome. Current bid: $310.00',
+                    NOW() - INTERVAL 7 HOUR
+                  UNION ALL SELECT
+                    'sneakerhead_nj',
+                    'You have been outbid on Nike Kobe 6 Protro Reverse Grinch. Current bid: $470.00',
+                    NOW() - INTERVAL 6 HOUR
+                  UNION ALL SELECT
+                    'sole_seller',
+                    'You have been outbid on JJJJound x New Balance 991 Made in UK Grey Olive. Current bid: $410.00',
+                    NOW() - INTERVAL 5 HOUR
+                ) AS src
+                """,
+                "DROP TEMPORARY TABLE IF EXISTS tmp_cats",
+            ]
+        )
+
+        connection = db.session.connection()
+        for query in queries:
+            connection.execute(text(query))
+
         db.session.commit()
     except Exception:
         db.session.rollback()
